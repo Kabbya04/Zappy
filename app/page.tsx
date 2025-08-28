@@ -125,7 +125,7 @@ export default function Home() {
       try {
         const completion = await groq.chat.completions.create({
           messages: [{ role: 'user', content: prompt }],
-          model: 'llama3-70b-8192',
+          model: 'openai/gpt-oss-120b',
           response_format: { type: 'json_object' },
         });
         const responseContent = completion.choices[0]?.message?.content;
@@ -160,7 +160,7 @@ export default function Home() {
     try {
         const completion = await groq.chat.completions.create({
             messages: [{ role: 'system', content: contextPrompt }, ...newChatHistory],
-            model: 'llama3-70b-8192',
+            model: 'openai/gpt-oss-120b',
         });
         const assistantResponse = completion.choices[0]?.message?.content || "I'm not sure how to respond.";
         setChatHistory(prev => [...prev, { role: 'assistant', content: assistantResponse }]);
