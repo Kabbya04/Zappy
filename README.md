@@ -17,7 +17,7 @@ The entire application is built with a frontend-only architecture using Next.js,
 
 ### Core Features
 
-*   **🤖 Intelligent Recommendations:** Powered by `llama3-70b-8192` on the Groq Cloud for high-quality, relevant suggestions.
+*   **🤖 Intelligent Recommendations:** Powered by `openai/gpt-oss-120b` on the Groq Cloud for high-quality, relevant suggestions.
 *   **📝 Dynamic Questionnaire:** A multi-step questionnaire that adapts its questions based on the user's selected category (Game, Anime, or Movie).
 *   **✍️ Custom User Input:** An "Other" option in the questionnaire allows users to provide their own answers for more tailored results.
 *   **💬 Conversational UI:** A sleek, dashboard-style chat interface to discuss recommendations with the AI.
