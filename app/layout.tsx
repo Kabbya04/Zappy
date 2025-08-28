@@ -8,13 +8,12 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Zappy",
   description: "Your personal Game, Anime, and Movie recommender.",
-  // Add the following lines:
   openGraph: {
-    images: ['/zappy.png'], // Replace with the actual path to your image
+    images: ['/zappy-thumbnail.png'],
   },
   twitter: {
-    card: "summary_large_image", // Important for Twitter to display the image
-    images: ['/zappy.png'], // Replace with the actual path to your image
+    card: "summary_large_image",
+    images: ['/zappy-thumbnail.png'],
   },
 };
 
@@ -28,7 +27,8 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          // MODIFICATION: Set the default theme to 'dark'
+          defaultTheme="dark"
           enableSystem
           disableTransitionOnChange
         >

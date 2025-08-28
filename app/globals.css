@@ -1,26 +1,85 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --color-background: 244 227 178; /* F4E3B2 */
+    --color-foreground: 5 5 23; /* 050517 */
+    --color-card: 255 255 255;
+    --color-card-foreground: 5 5 23;
+    --color-popover: 255 255 255;
+    --color-popover-foreground: 5 5 23;
+    --color-primary: 207 92 54; /* CF5C36 */
+    --color-primary-foreground: 255 255 255;
+    --color-secondary: 239 200 139; /* EFC88B */
+    --color-secondary-foreground: 5 5 23;
+    --color-muted: 240 240 240;
+    --color-muted-foreground: 100 116 139;
+    --color-border: 220 220 220;
+    --color-ring: 207 92 54;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --color-background: 5 5 23; /* 050517 */
+    --color-foreground: 244 227 178; /* F4E3B2 */
+    --color-card: 12 12 30;
+    --color-card-foreground: 244 227 178;
+    --color-popover: 12 12 30;
+    --color-popover-foreground: 244 227 178;
+    --color-primary: 207 92 54;
+    --color-primary-foreground: 255 255 255;
+    --color-secondary: 239 200 139;
+    --color-secondary-foreground: 5 5 23;
+    --color-muted: 30 30 50;
+    --color-muted-foreground: 160 174 192;
+    --color-border: 40 40 60;
+    --color-ring: 207 92 54;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Spotlight effect component */
+.spotlight-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.spotlight-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    350px circle at var(--mouse-x) var(--mouse-y),
+    rgb(var(--primary) / 0.15),
+    transparent 80%
+  );
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.spotlight-card:hover::before {
+  opacity: 1;
+}
+
+/* Ensure content is above the spotlight effect */
+.spotlight-card > * {
+  position: relative;
+  z-index: 1;
 }
