@@ -35,8 +35,10 @@ export default function Home() {
   const [userInput, setUserInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [appState, setAppState] = useState<'questionnaire' | 'recommendations' | 'chat'>('questionnaire');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // --- FIX #2: Removed the redundant isModalOpen state ---
   const [modalContent, setModalContent] = useState<Recommendation | null>(null);
+  
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const { theme, setTheme } = useTheme();
   const [isMounted, setIsMounted] = useState(false);
@@ -102,7 +104,8 @@ export default function Home() {
       const responseContent = completion.choices[0]?.message?.content;
       if (responseContent) {
         const parsedResponse = JSON.parse(responseContent);
-        let potentialArray = Array.isArray(parsedResponse) ? parsedResponse : Object.values(parsedResponse)[0];
+        // --- FIX #1: Changed `let` to `const` ---
+        const potentialArray = Array.isArray(parsedResponse) ? parsedResponse : Object.values(parsedResponse)[0];
         if (Array.isArray(potentialArray)) {
             setRecommendations(potentialArray as Recommendation[]);
             const welcomeMessage: Message = { role: 'assistant', content: `Hi there! I'm Zappy. Based on your choices, here are a few ${category} recommendations for you. Feel free to ask me anything about them!` };
@@ -147,12 +150,11 @@ export default function Home() {
     handleSendMessage(prompt);
   };
 
+  // --- FIX #2: Simplified modal functions ---
   const openModal = (recommendation: Recommendation) => {
     setModalContent(recommendation);
-    setIsModalOpen(true);
   };
   const closeModal = () => {
-    setIsModalOpen(false);
     setModalContent(null);
   };
 
@@ -182,6 +184,7 @@ export default function Home() {
   };
 
   const renderContent = () => {
+    // ... (This entire function remains the same as your last working version)
     if (appState === 'questionnaire') {
       const currentQ = !selectedCategory ? initialQuestion : questionSets[selectedCategory][currentQuestionIndex];
       const progressText = selectedCategory ? `Question ${currentQuestionIndex + 2} of 5` : "Question 1 of 5";
@@ -373,7 +376,8 @@ export default function Home() {
              {renderContent()}
         </div>
 
-        <RecommendationModal recommendation={modalContent} onClose={closeModal} />
+        {/* --- FIX #2: Conditionally render the modal based on modalContent --- */}
+        {modalContent && <RecommendationModal recommendation={modalContent} onClose={closeModal} />}
     </main>
   );
 }
