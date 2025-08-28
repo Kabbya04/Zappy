@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
+import { motion } from "framer-motion";
+import { LampContainer } from "@/components/lamp";
 import { initialQuestion, questionSets } from '@/lib/questions';
 import { RecommendationCard } from '@/components/recommendation-card';
 import { ChatMessage } from '@/components/chat-message';
@@ -21,7 +23,7 @@ const predefinedPrompts = [
   "Which one is the most critically acclaimed?",
 ];
 
-// --- ChatInput Component (defined outside to prevent re-rendering bugs) ---
+// --- ChatInput Component ---
 interface ChatInputProps {
   userInput: string;
   setUserInput: (value: string) => void;
@@ -33,7 +35,7 @@ interface ChatInputProps {
 
 const ChatInput: React.FC<ChatInputProps> = ({ userInput, setUserInput, isLoading, handleSendMessage, hasConversationStarted, handlePredefinedPromptClick }) => {
   return (
-    <div className="w-full max-w-2xl mx-auto">
+    <div className="w-full">
       {!hasConversationStarted && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
           {predefinedPrompts.map((prompt) => (
@@ -53,7 +55,9 @@ const ChatInput: React.FC<ChatInputProps> = ({ userInput, setUserInput, isLoadin
   );
 };
 
+// --- Main Page Component ---
 export default function Home() {
+  const [showLanding, setShowLanding] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isOtherSelected, setIsOtherSelected] = useState(false);
   const [otherAnswerText, setOtherAnswerText] = useState('');
@@ -68,39 +72,21 @@ export default function Home() {
   const [modalContent, setModalContent] = useState<Recommendation | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const { theme, setTheme } = useTheme();
-  const [isMounted, setIsMounted] = useState(false);
-
-  const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [mounted, setMounted] = useState(false);
-    useEffect(() => setMounted(true), []);
-
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-background to-secondary/20">
-        <div className="absolute top-4 right-4 flex items-center gap-4">
-          <button onClick={handleNewRecommendation} className="p-2 rounded-lg text-muted-foreground/60 hover:bg-card">
-            <RefreshCw size={18} />
-          </button>
-          {mounted && (
-            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-lg text-muted-foreground/60 hover:bg-card">
-              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-          )}
-        </div>
-        {children}
-      </div>
-    );
-  };
   
+  // MODIFICATION: State to prevent hydration mismatch
+  const [isMounted, setIsMounted] = useState(false);
   useEffect(() => { setIsMounted(true); }, []);
+  
   useEffect(() => {
     if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
   }, [chatHistory]);
+
   useEffect(() => {
     const userMessagesCount = chatHistory.filter(msg => msg.role === 'user').length;
     if (userMessagesCount === 15) alert("You're approaching the conversation limit!");
     if (userMessagesCount >= 20) {
         alert("Conversation limit reached. Starting over!");
-        handleNewRecommendation();
+        handleStartOver();
     }
   }, [chatHistory]);
 
@@ -133,10 +119,8 @@ export default function Home() {
     const category = finalAnswers[0];
     const userPreferences = finalAnswers.slice(1).join(', ');
     const prompt = `You are Zappy, an expert recommender for ${category}s. A user has provided the following preferences: ${userPreferences}. Based ONLY on these preferences, provide exactly three ${category} recommendations. Format the output as a valid JSON array of objects. Each object must have "title", "category", and "explanation" keys. Do not include any other text or explanations outside of the JSON array.`;
-
     let attempts = 0;
     const maxAttempts = 3;
-
     while (attempts < maxAttempts) {
       try {
         const completion = await groq.chat.completions.create({
@@ -144,45 +128,21 @@ export default function Home() {
           model: 'llama3-70b-8192',
           response_format: { type: 'json_object' },
         });
-
         const responseContent = completion.choices[0]?.message?.content;
-
         if (responseContent) {
-          try {
-            const parsedResponse = JSON.parse(responseContent);
-            const potentialArray = Array.isArray(parsedResponse)
-              ? parsedResponse
-              : Object.values(parsedResponse)[0];
-
-            if (Array.isArray(potentialArray)) {
-              setRecommendations(potentialArray as Recommendation[]);
-              setIsLoading(false);
-              return; // Success, exit the function
-            } else {
-              console.error("Invalid response format", parsedResponse);
-            }
-          } catch (jsonError) {
-            console.error("Error parsing JSON:", jsonError);
-            // The model did not return a valid JSON, so we will retry
+          const parsedResponse = JSON.parse(responseContent);
+          const potentialArray = Array.isArray(parsedResponse) ? parsedResponse : Object.values(parsedResponse)[0];
+          if (Array.isArray(potentialArray)) {
+            setRecommendations(potentialArray as Recommendation[]);
+            setIsLoading(false);
+            return;
           }
         }
-      } catch (error) {
-        console.error("Error fetching recommendations:", error);
-        // An API error occurred, so we will retry
-      }
-
+      } catch (error) { console.error("Error fetching recommendations:", error); }
       attempts++;
-      if (attempts < maxAttempts) {
-        console.log(`Retrying... (attempt ${attempts})`);
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempts)); // Wait before retrying
-      }
     }
-
-    // If all attempts fail
-    console.error("Failed to get recommendations after multiple attempts.");
-    // You could set an error state here to show a message to the user
     alert("Sorry, I couldn't get recommendations for you. Please try again.");
-    handleNewRecommendation(); // Reset the state
+    handleStartOver();
     setIsLoading(false);
   };
   
@@ -215,7 +175,8 @@ export default function Home() {
   const handlePredefinedPromptClick = (prompt: string) => { handleSendMessage(prompt); };
   const openModal = (recommendation: Recommendation) => { setModalContent(recommendation); };
   const closeModal = () => { setModalContent(null); };
-  const handleNewRecommendation = () => {
+  
+  const handleStartOver = () => {
     setIsSidebarOpen(false);
     setSelectedCategory(null);
     setCurrentQuestionIndex(0);
@@ -228,16 +189,95 @@ export default function Home() {
     setOtherAnswerText('');
   };
 
+  // MODIFICATION: New function to return to the landing page
+  const handleGoToLanding = () => {
+    handleStartOver(); // Reset the app state
+    setShowLanding(true); // Show the landing page
+  }
+
+  if (showLanding) {
+    return (
+        <LampContainer>
+            <motion.h1
+                initial={{ opacity: 0.5, y: 100 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{
+                    delay: 0.3,
+                    duration: 0.8,
+                    ease: "easeInOut",
+                }}
+                className="mt-8 bg-gradient-to-br from-foreground to-secondary py-4 bg-clip-text text-center text-5xl font-bold tracking-tight text-transparent md:text-7xl"
+            >
+                Zappy ⚡
+            </motion.h1>
+            <motion.p
+                initial={{ opacity: 0, y: 120 }}
+                whileInView={{ opacity: 1, y: 20 }}
+                transition={{
+                    delay: 0.4,
+                    duration: 0.8,
+                    ease: "easeInOut",
+                }}
+                className="mt-4 max-w-2xl text-center text-base md:text-lg text-foreground/70"
+            >
+                An AI-powered recommender that uses LLMs to suggest games, anime, and movies based on your tastes. Through natural conversation, it delivers smart, personalized picks—helping you discover your next favorite game, binge-worthy anime, or movie that perfectly matches your mood.
+            </motion.p>
+            <motion.div
+                initial={{ opacity: 0, y: 140 }}
+                whileInView={{ opacity: 1, y: 40 }}
+                transition={{
+                    delay: 0.5,
+                    duration: 0.8,
+                    ease: "easeInOut",
+                }}
+                className="mt-8 flex items-center space-x-4"
+            >
+                <button
+                    onClick={() => setShowLanding(false)}
+                    className="bg-primary text-primary-foreground font-bold py-3 px-8 rounded-full hover:bg-primary/90 transition-transform transform hover:scale-105"
+                >
+                    Get Started
+                </button>
+                 <button 
+                    onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} 
+                    className="p-3 rounded-full text-foreground/60 hover:bg-card/50"
+                 >
+                    {/* HYDRATION FIX: Only render the icon when the component has mounted on the client */}
+                    {isMounted && (theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />)}
+                </button>
+            </motion.div>
+        </LampContainer>
+    );
+  }
+
+  // --- Main App Components ---
+  const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center">
+        <div className="absolute top-4 right-4 flex items-center gap-4">
+          <button onClick={handleStartOver} className="p-2 rounded-lg text-muted-foreground/60 hover:bg-card">
+            <RefreshCw size={18} />
+          </button>
+          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-lg text-muted-foreground/60 hover:bg-card">
+            {isMounted && (theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />)}
+          </button>
+        </div>
+        {children}
+      </div>
+    );
+  };
+  
   const Sidebar: React.FC = () => {
     const ICONS = { Game: Gamepad2, Anime: Bot, Movie: Film };
     const Icon = selectedCategory ? ICONS[selectedCategory] : Bot;
     return (
       <div className={`transition-all duration-300 ease-in-out bg-card border-r border-border flex flex-col flex-shrink-0 ${isSidebarOpen ? 'w-64 p-4' : 'w-0 md:w-20 p-0 md:p-2 items-center'}`}>
         <div className={`flex items-center mb-4 pb-4 border-b border-border ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
-          <div className={`flex items-center gap-2 ${!isSidebarOpen && 'hidden'}`}>
+          {/* MODIFICATION: Made the Zappy logo a clickable button */}
+          <button onClick={handleGoToLanding} className={`flex items-center gap-2 ${!isSidebarOpen && 'hidden'}`}>
             <Zap className="text-secondary" />
             <span className="text-xl font-bold">Zappy</span>
-          </div>
+          </button>
           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 rounded-lg text-muted-foreground/60 hover:bg-background">
             {isSidebarOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
           </button>
@@ -256,13 +296,13 @@ export default function Home() {
           </ul>
         </div>
         <div className="mt-auto pt-4 border-t border-border flex flex-col gap-2">
-          <button onClick={handleNewRecommendation} className={`w-full p-3 rounded-lg text-card-foreground/80 hover:bg-background transition-colors flex items-center gap-3 ${isSidebarOpen && 'justify-center'}`}>
+          <button onClick={handleStartOver} className={`w-full p-3 rounded-lg text-card-foreground/80 hover:bg-background transition-colors flex items-center gap-3 ${isSidebarOpen && 'justify-center'}`}>
             <RefreshCw size={18} className="flex-shrink-0" />
             <span className={`font-medium ${isSidebarOpen ? 'inline' : 'hidden'}`}>Start Over</span>
           </button>
           <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className={`w-full p-3 rounded-lg text-card-foreground/80 hover:bg-background transition-colors flex items-center gap-3 ${isSidebarOpen && 'justify-center'}`}>
-            {theme === 'dark' ? <Sun size={18} className="flex-shrink-0" /> : <Moon size={18} className="flex-shrink-0" />}
-            <span className={`font-medium ${isSidebarOpen ? 'inline' : 'hidden'}`}>{theme === 'dark' ? 'Light Theme' : 'Dark Theme'}</span>
+            {isMounted && (theme === 'dark' ? <Sun size={18} className="flex-shrink-0" /> : <Moon size={18} className="flex-shrink-0" />)}
+            <span className={`font-medium ${isSidebarOpen ? 'inline' : 'hidden'}`}>{isMounted && (theme === 'dark' ? 'Light Theme' : 'Dark Theme')}</span>
           </button>
         </div>
       </div>
@@ -328,16 +368,15 @@ export default function Home() {
           </PageWrapper>
         );
     }
-    
     if (appState === 'chat') {
       const hasConversationStarted = chatHistory.length > 0;
       return (
-        <div className="flex w-full h-full bg-gradient-to-br from-background to-secondary/20">
+        <div className="flex w-full h-full">
           <Sidebar />
-          <div className="flex flex-col flex-grow h-full bg-background">
+          <div className="flex flex-col flex-grow h-full bg-transparent">
             {hasConversationStarted ? (
-              <>
-                <div ref={chatContainerRef} className="flex-grow p-6 space-y-6 overflow-y-auto">
+              <div className="w-full max-w-2xl mx-auto flex flex-col h-full">
+                <div ref={chatContainerRef} className="flex-grow pt-6 space-y-6 overflow-y-auto px-2">
                   {chatHistory.map((msg, index) => <ChatMessage key={index} {...msg} />)}
                   {isLoading && chatHistory.length > 0 && (
                     <div className="flex items-start gap-4">
@@ -352,13 +391,13 @@ export default function Home() {
                     </div>
                   )}
                 </div>
-                <div className="p-4 bg-transparent border-t border-border">
+                <div className="pt-4 pb-6 bg-transparent border-t border-border">
                   <ChatInput userInput={userInput} setUserInput={setUserInput} isLoading={isLoading} handleSendMessage={handleSendMessage} hasConversationStarted={hasConversationStarted} handlePredefinedPromptClick={handlePredefinedPromptClick} />
                 </div>
-              </>
+              </div>
             ) : (
               <div className="h-full w-full flex justify-center items-center p-4">
-                <div className="flex flex-col items-center gap-8 text-center w-full">
+                <div className="flex flex-col items-center gap-8 text-center w-full max-w-2xl mx-auto">
                   <div className="flex flex-col items-center gap-4">
                     <Zap className="w-12 h-12 text-secondary" />
                     <h1 className="text-4xl md:text-5xl font-serif">{selectedCategory ? `Ready to discuss ${selectedCategory}s?` : "Let's find something great!"}</h1>
@@ -376,7 +415,7 @@ export default function Home() {
 
   return (
     <>
-      <main className={`transition-all duration-300 ${appState === 'chat' ? "h-screen w-screen" : "flex flex-col items-center justify-center min-h-screen p-4"} bg-background text-foreground ${modalContent ? 'blur-sm' : ''}`}>
+      <main className={`transition-all duration-300 ${appState === 'chat' ? "h-screen w-screen" : "flex flex-col items-center justify-center min-h-screen p-4"} bg-gradient-to-br from-background to-gradient-accent/20 text-foreground ${modalContent ? 'blur-sm' : ''}`}>
           <div className={appState === 'chat' ? "h-full w-full" : "w-full h-full flex items-center justify-center"}>
                {renderContent()}
           </div>

@@ -19,7 +19,7 @@ export const ChatMessage = ({ role, content }: ChatMessageProps) => {
         </div>
       )}
       <div
-        className={`max-w-md rounded-2xl p-4 ${
+        className={`max-w-lg rounded-2xl p-4 ${
           isUser
             ? 'bg-primary text-primary-foreground rounded-br-none'
             : 'bg-card text-card-foreground rounded-bl-none shadow-sm'

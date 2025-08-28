@@ -14,23 +14,27 @@ export const RecommendationCard = ({ title, category, explanation }: Recommendat
   useEffect(() => {
     const card = cardRef.current;
     if (!card) return;
+
     const handleMouseMove = (e: MouseEvent) => {
-      const { left, top } = card.getBoundingClientRect();
-      const mouseX = e.clientX - left;
-      const mouseY = e.clientY - top;
-      card.style.setProperty('--mouse-x', `${mouseX}px`);
-      card.style.setProperty('--mouse-y', `${mouseY}px`);
+      // Set CSS variables for global mouse position
+      card.style.setProperty('--mouse-x', `${e.clientX}px`);
+      card.style.setProperty('--mouse-y', `${e.clientY}px`);
     };
-    card.addEventListener('mousemove', handleMouseMove);
-    return () => card.removeEventListener('mousemove', handleMouseMove);
-  }, []);
+
+    // Listen to the window's mousemove event for a global effect
+    window.addEventListener('mousemove', handleMouseMove);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, []); // Empty dependency array ensures this runs only once on mount
 
   return (
     <div 
       ref={cardRef}
-      className="spotlight-card bg-card text-card-foreground p-6 rounded-2xl shadow-lg w-full transition-transform transform hover:scale-105 border border-border"
+      className="glow-card bg-card text-card-foreground p-6 rounded-2xl shadow-lg w-full border border-border"
     >
-      <div className="relative z-[1]">
+      <div className="transition-transform transform hover:scale-105">
         <span className="inline-block bg-primary/10 text-primary text-xs font-semibold px-2.5 py-0.5 rounded-full mb-2">
           {category}
         </span>

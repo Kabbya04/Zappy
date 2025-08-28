@@ -27,6 +27,7 @@ const config: Config = {
         "muted-foreground": "rgb(var(--color-muted-foreground) / <alpha-value>)",
         border: "rgb(var(--color-border) / <alpha-value>)",
         ring: "rgb(var(--color-ring) / <alpha-value>)",
+        "gradient-accent": "rgb(var(--color-gradient-accent) / <alpha-value>)",
       },
       borderRadius: {
         lg: "var(--radius)",
