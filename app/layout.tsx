@@ -9,11 +9,11 @@ export const metadata: Metadata = {
   title: "Zappy",
   description: "Your personal Game, Anime, and Movie recommender.",
   openGraph: {
-    images: ['/zappy-thumbnail.png'],
+    images: ['/zappy.png'],
   },
   twitter: {
     card: "summary_large_image",
-    images: ['/zappy-thumbnail.png'],
+    images: ['/zappy.png'],
   },
 };
 
