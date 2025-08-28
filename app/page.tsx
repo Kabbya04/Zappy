@@ -70,7 +70,26 @@ export default function Home() {
   const { theme, setTheme } = useTheme();
   const [isMounted, setIsMounted] = useState(false);
 
-  const groq = new Groq({ apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY, dangerouslyAllowBrowser: true });
+  const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => setMounted(true), []);
+
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-background to-secondary/20">
+        <div className="absolute top-4 right-4 flex items-center gap-4">
+          <button onClick={handleNewRecommendation} className="p-2 rounded-lg text-muted-foreground/60 hover:bg-card">
+            <RefreshCw size={18} />
+          </button>
+          {mounted && (
+            <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-lg text-muted-foreground/60 hover:bg-card">
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+          )}
+        </div>
+        {children}
+      </div>
+    );
+  };
   
   useEffect(() => { setIsMounted(true); }, []);
   useEffect(() => {
@@ -109,6 +128,7 @@ export default function Home() {
   };
 
   const getRecommendations = async (finalAnswers: string[]) => {
+    const groq = new Groq({ apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY, dangerouslyAllowBrowser: true });
     setIsLoading(true);
     const category = finalAnswers[0];
     const userPreferences = finalAnswers.slice(1).join(', ');
@@ -167,6 +187,7 @@ export default function Home() {
   };
   
   const handleSendMessage = async (messageOverride?: string) => {
+    const groq = new Groq({ apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY, dangerouslyAllowBrowser: true });
     if (chatHistory.length === 0) setIsSidebarOpen(true);
     const message = messageOverride || userInput;
     if (!message.trim()) return;
@@ -235,11 +256,11 @@ export default function Home() {
           </ul>
         </div>
         <div className="mt-auto pt-4 border-t border-border flex flex-col gap-2">
-          <button onClick={handleNewRecommendation} className={`w-full p-3 rounded-lg text-card-foreground/80 hover:bg-background transition-colors flex items-center gap-3 ${!isSidebarOpen && 'justify-center'}`}>
+          <button onClick={handleNewRecommendation} className={`w-full p-3 rounded-lg text-card-foreground/80 hover:bg-background transition-colors flex items-center gap-3 ${isSidebarOpen && 'justify-center'}`}>
             <RefreshCw size={18} className="flex-shrink-0" />
             <span className={`font-medium ${isSidebarOpen ? 'inline' : 'hidden'}`}>Start Over</span>
           </button>
-          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className={`w-full p-3 rounded-lg text-card-foreground/80 hover:bg-background transition-colors flex items-center gap-3 ${!isSidebarOpen && 'justify-center'}`}>
+          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className={`w-full p-3 rounded-lg text-card-foreground/80 hover:bg-background transition-colors flex items-center gap-3 ${isSidebarOpen && 'justify-center'}`}>
             {theme === 'dark' ? <Sun size={18} className="flex-shrink-0" /> : <Moon size={18} className="flex-shrink-0" />}
             <span className={`font-medium ${isSidebarOpen ? 'inline' : 'hidden'}`}>{theme === 'dark' ? 'Light Theme' : 'Dark Theme'}</span>
           </button>
@@ -254,42 +275,47 @@ export default function Home() {
       const progressText = selectedCategory ? `Question ${currentQuestionIndex + 2} of 5` : "Question 1 of 5";
       const optionsLayout = !selectedCategory ? "flex flex-col gap-4" : "grid grid-cols-1 md:grid-cols-2 gap-4";
       return (
-        <div className="w-full max-w-2xl mx-auto">
-          <div className="bg-card text-card-foreground p-8 rounded-2xl shadow-2xl border border-border">
-            <h2 className="text-2xl font-bold text-center mb-6">{currentQ.text}</h2>
-            {isOtherSelected ? (
-              <div className="flex flex-col gap-4">
-                <input type="text" value={otherAnswerText} onChange={(e) => setOtherAnswerText(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleOtherSubmit()} placeholder="Type your answer here..." className="w-full p-4 rounded-xl bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" autoFocus />
-                <div className="flex gap-3">
-                  <button onClick={handleOtherSubmit} className="flex-grow p-4 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors">Submit</button>
-                  <button onClick={() => setIsOtherSelected(false)} className="p-4 rounded-xl bg-muted text-foreground hover:bg-muted/70 transition-colors" title="Go back to options"><CornerDownLeft size={24} /></button>
+        <PageWrapper>
+          <div className="w-full max-w-2xl mx-auto">
+            <div className="bg-card text-card-foreground p-8 rounded-2xl shadow-2xl border border-border">
+              <h2 className="text-2xl font-bold text-center mb-6">{currentQ.text}</h2>
+              {isOtherSelected ? (
+                <div className="flex flex-col gap-4">
+                  <input type="text" value={otherAnswerText} onChange={(e) => setOtherAnswerText(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleOtherSubmit()} placeholder="Type your answer here..." className="w-full p-4 rounded-xl bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" autoFocus />
+                  <div className="flex gap-3">
+                    <button onClick={handleOtherSubmit} className="flex-grow p-4 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors">Submit</button>
+                    <button onClick={() => setIsOtherSelected(false)} className="p-4 rounded-xl bg-muted text-foreground hover:bg-muted/70 transition-colors" title="Go back to options"><CornerDownLeft size={24} /></button>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className={optionsLayout}>
-                {currentQ.options.map((option) => (
-                  <button key={option} onClick={() => handleAnswer(option)} className="p-4 rounded-xl text-lg bg-background border border-border text-foreground/80 hover:bg-primary hover:text-primary-foreground transition-colors duration-200">{option}</button>
-                ))}
-                {selectedCategory && (
-                  <button key="other" onClick={() => setIsOtherSelected(true)} className="p-4 rounded-xl text-lg bg-background border border-border text-foreground/80 hover:bg-primary hover:text-primary-foreground transition-colors duration-200">Other</button>
-                )}
-              </div>
-            )}
-            <div className="mt-6 text-center text-sm text-muted-foreground">{progressText}</div>
+              ) : (
+                <div className={optionsLayout}>
+                  {currentQ.options.map((option) => (
+                    <button key={option} onClick={() => handleAnswer(option)} className="p-4 rounded-xl text-lg bg-background border border-border text-foreground/80 hover:bg-primary hover:text-primary-foreground transition-colors duration-200">{option}</button>
+                  ))}
+                  {selectedCategory && (
+                    <button key="other" onClick={() => setIsOtherSelected(true)} className="p-4 rounded-xl text-lg bg-background border border-border text-foreground/80 hover:bg-primary hover:text-primary-foreground transition-colors duration-200">Other</button>
+                  )}
+                </div>
+              )}
+              <div className="mt-6 text-center text-sm text-muted-foreground">{progressText}</div>
+            </div>
           </div>
-        </div>
+        </PageWrapper>
       );
     }
     if (isLoading && recommendations.length === 0) {
       return (
-         <div className="text-center">
+        <PageWrapper>
+          <div className="text-center">
             <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-primary mx-auto"></div>
             <p className="mt-4 text-lg text-muted-foreground">Zappy is thinking...</p>
-         </div>
+          </div>
+        </PageWrapper>
       );
     }
     if (appState === 'recommendations' && recommendations.length > 0) {
         return (
+          <PageWrapper>
             <div className="text-center">
                 <h2 className="text-3xl font-bold text-center mb-6">{`Here are your recommendations!`}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
@@ -299,18 +325,19 @@ export default function Home() {
                     <button onClick={() => setAppState('chat')} className="bg-primary text-primary-foreground font-bold py-3 px-8 rounded-full hover:bg-primary/90 transition-transform transform hover:scale-105">Discuss with Zappy</button>
                 </div>
             </div>
+          </PageWrapper>
         );
     }
     
     if (appState === 'chat') {
       const hasConversationStarted = chatHistory.length > 0;
       return (
-        <div className="flex w-full h-full">
+        <div className="flex w-full h-full bg-gradient-to-br from-background to-secondary/20">
           <Sidebar />
           <div className="flex flex-col flex-grow h-full bg-background">
             {hasConversationStarted ? (
               <>
-                <div ref={chatContainerRef} className="flex-grow p-6 pt-8 md:pt-6 space-y-6 overflow-y-auto">
+                <div ref={chatContainerRef} className="flex-grow p-6 space-y-6 overflow-y-auto">
                   {chatHistory.map((msg, index) => <ChatMessage key={index} {...msg} />)}
                   {isLoading && chatHistory.length > 0 && (
                     <div className="flex items-start gap-4">
