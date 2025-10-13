@@ -1,7 +1,8 @@
 export const initialQuestion = {
   id: 1,
   text: "First, what are you in the mood for?",
-  options: ["Game", "Anime", "Movie"],
+  // Add "TV Series" to the options array
+  options: ["Game", "Anime", "Movie", "TV Series"],
 };
 
 export const questionSets = {
@@ -69,6 +70,29 @@ export const questionSets = {
       id: 5,
       text: "Pick a decade for the film's release:",
       options: ["2020s", "2010s", "2000s", "90s or earlier"],
+    },
+  ],
+  // Add the new question set for TV Series
+  "TV Series": [
+    {
+      id: 2,
+      text: "Which TV series genre are you in the mood for?",
+      options: ["Comedy", "Drama", "Sci-Fi/Fantasy", "Thriller/Mystery", "Documentary", "Reality TV"],
+    },
+    {
+      id: 3,
+      text: "What kind of show are you looking for?",
+      options: ["A lighthearted 30-min sitcom", "A serious, hour-long drama", "A complex, thought-provoking story", "An easy-to-watch reality show"],
+    },
+    {
+      id: 4,
+      text: "How do you prefer to watch?",
+      options: ["Something I can binge in a weekend", "An episodic show I can watch weekly", "A long-running series to get invested in", "Doesn't matter"],
+    },
+    {
+      id: 5,
+      text: "What style of show appeals to you?",
+      options: ["Classic network television", "Modern streaming original", "British production", "Animated series for adults"],
     },
   ],
 };

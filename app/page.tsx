@@ -9,12 +9,21 @@ import { ChatMessage } from '@/components/chat-message';
 import { RecommendationModal } from '@/components/recommendation-modal';
 import Groq from 'groq-sdk';
 import { useTheme } from 'next-themes';
-import { Sun, Moon, Send, RefreshCw, Bot, Film, Gamepad2, CornerDownLeft, Zap, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Sun, Moon, Send, RefreshCw, Bot, Film, Gamepad2, CornerDownLeft, Zap, PanelLeftClose, PanelLeftOpen, Tv2 } from 'lucide-react';
+import { getRecentReleases, getTVDBImage, getConversationalContext } from '@/lib/tvdb';
 
 // --- Interface Definitions ---
-interface Recommendation { title: string; category: string; explanation: string; }
+interface Recommendation { title: string; category: string; explanation: string; imageUrl?: string; }
 interface Message { role: 'user' | 'assistant'; content: string; }
-type Category = 'Game' | 'Anime' | 'Movie';
+type Category = 'Game' | 'Anime' | 'Movie' | 'TV Series';
+
+// Helper function to clean LLM-generated titles for better API searching.
+const cleanTitleForSearch = (title: string): string => {
+  return title.replace(/\s*\(Season\s\d+\)/i, '')
+              .replace(/\s*:\s*(Part|Season)\s\d+/i, '')
+              .replace(/\s*-\s*Season\s\d+/i, '')
+              .trim();
+};
 
 const predefinedPrompts = [
   "Tell me more about the first recommendation.",
@@ -73,7 +82,8 @@ export default function Home() {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const { theme, setTheme } = useTheme();
   
-  // MODIFICATION: State to prevent hydration mismatch
+  const [initialContext, setInitialContext] = useState('');
+  
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => { setIsMounted(true); }, []);
   
@@ -116,34 +126,61 @@ export default function Home() {
   const getRecommendations = async (finalAnswers: string[]) => {
     const groq = new Groq({ apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY, dangerouslyAllowBrowser: true });
     setIsLoading(true);
-    const category = finalAnswers[0];
+    setRecommendations([]);
+    setInitialContext('');
+
+    const category = finalAnswers[0] as Category;
     const userPreferences = finalAnswers.slice(1).join(', ');
-    const prompt = `You are Zappy, an expert recommender for ${category}s. A user has provided the following preferences: ${userPreferences}. Based ONLY on these preferences, provide exactly three ${category} recommendations. Format the output as a valid JSON array of objects. Each object must have "title", "category", and "explanation" keys. Do not include any other text or explanations outside of the JSON array.`;
-    let attempts = 0;
-    const maxAttempts = 3;
-    while (attempts < maxAttempts) {
-      try {
-        const completion = await groq.chat.completions.create({
-          messages: [{ role: 'user', content: prompt }],
-          model: 'openai/gpt-oss-120b',
-          response_format: { type: 'json_object' },
-        });
-        const responseContent = completion.choices[0]?.message?.content;
-        if (responseContent) {
+    
+    const searchType = category === 'Movie' ? 'movie' : 'series';
+    console.log(`Fetching recent releases for "${category}" from TheTVDB...`);
+    const recentReleases = await getRecentReleases(userPreferences, searchType);
+    
+    const contextString = recentReleases
+      ? `To ensure your recommendations are current, consider this list of recent releases (from 2023 onwards) that match the user's preferences:\n${recentReleases}\n\n`
+      : "";
+      
+    setInitialContext(contextString);
+    
+    const prompt = `${contextString}You are Zappy, an expert recommender for ${category}s. A user has provided the following preferences: ${userPreferences}. Based ONLY on these preferences and prioritizing the recent releases list if relevant, provide exactly three ${category} recommendations. Format the output as a valid JSON array of objects. Each object must have "title", "category", and "explanation" keys. Do not include any other text or explanations outside of the JSON array.`;
+    
+    try {
+      const completion = await groq.chat.completions.create({
+        messages: [{ role: 'user', content: prompt }],
+        model: 'openai/gpt-oss-120b',
+        response_format: { type: 'json_object' },
+      });
+
+      const responseContent = completion.choices[0]?.message?.content;
+      if (responseContent) {
           const parsedResponse = JSON.parse(responseContent);
-          const potentialArray = Array.isArray(parsedResponse) ? parsedResponse : Object.values(parsedResponse)[0];
-          if (Array.isArray(potentialArray)) {
-            setRecommendations(potentialArray as Recommendation[]);
-            setIsLoading(false);
-            return;
+          let rawRecommendations = (Array.isArray(parsedResponse) ? parsedResponse : Object.values(parsedResponse)[0]) as Recommendation[];
+          
+          if (Array.isArray(rawRecommendations)) {
+            console.log("Fetching images for recommendations with smart search...");
+            
+            const recommendationsWithImages = await Promise.all(
+              rawRecommendations.map(async (rec) => {
+                const cleanedTitle = cleanTitleForSearch(rec.title);
+                const imageUrl = await getTVDBImage(cleanedTitle, searchType, category);
+                return { ...rec, title: cleanedTitle, category, imageUrl: imageUrl || undefined };
+              })
+            );
+
+            setRecommendations(recommendationsWithImages);
+          } else {
+            throw new Error("Parsed JSON from LLM was not a valid array.");
           }
-        }
-      } catch (error) { console.error("Error fetching recommendations:", error); }
-      attempts++;
+      } else {
+        throw new Error("Empty response from LLM.");
+      }
+    } catch (error) { 
+      console.error("Error in recommendation pipeline:", error);
+      alert("Sorry, I couldn't get recommendations for you. Please try again.");
+      handleStartOver();
+    } finally {
+      setIsLoading(false);
     }
-    alert("Sorry, I couldn't get recommendations for you. Please try again.");
-    handleStartOver();
-    setIsLoading(false);
   };
   
   const handleSendMessage = async (messageOverride?: string) => {
@@ -156,7 +193,15 @@ export default function Home() {
     setChatHistory(newChatHistory);
     setUserInput('');
     setIsLoading(true);
-    const contextPrompt = `You are Zappy, a helpful and friendly assistant specializing in games, anime, and movies. The user was just recommended the following: ${recommendations.map(r => r.title).join(', ')}. Your instructions are: 1. Only answer questions related to these recommendations or the general topics of games, anime, and movies. 2. If the user asks anything outside this scope, you MUST politely decline. 3. Keep your answers concise.`;
+
+    console.log(`Fetching conversational context for: "${message}"`);
+    const conversationalContextData = await getConversationalContext(message);
+    const conversationalContext = conversationalContextData
+      ? `To help answer the user's latest message, here is some specific, real-time information I found:\n${conversationalContextData}\n\n`
+      : "";
+
+    const contextPrompt = `${initialContext}${conversationalContext}You are Zappy, a helpful assistant. The user was recommended: ${recommendations.map(r => r.title).join(', ')}. Your instructions are: 1. Use the real-time information provided above to answer questions about specific titles, especially recent ones. 2. If the real-time info is empty, rely on your general knowledge. 3. Only answer questions related to entertainment. Politely decline otherwise. 4. Keep your answers concise.`;
+    
     try {
         const completion = await groq.chat.completions.create({
             messages: [{ role: 'system', content: contextPrompt }, ...newChatHistory],
@@ -187,12 +232,12 @@ export default function Home() {
     setAppState('questionnaire');
     setIsOtherSelected(false);
     setOtherAnswerText('');
+    setInitialContext('');
   };
 
-  // MODIFICATION: New function to return to the landing page
   const handleGoToLanding = () => {
-    handleStartOver(); // Reset the app state
-    setShowLanding(true); // Show the landing page
+    handleStartOver();
+    setShowLanding(true);
   }
 
   if (showLanding) {
@@ -242,7 +287,6 @@ export default function Home() {
                     onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} 
                     className="p-3 rounded-full text-foreground/60 hover:bg-card/50"
                  >
-                    {/* HYDRATION FIX: Only render the icon when the component has mounted on the client */}
                     {isMounted && (theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />)}
                 </button>
             </motion.div>
@@ -268,12 +312,11 @@ export default function Home() {
   };
   
   const Sidebar: React.FC = () => {
-    const ICONS = { Game: Gamepad2, Anime: Bot, Movie: Film };
+    const ICONS = { Game: Gamepad2, Anime: Bot, Movie: Film, 'TV Series': Tv2 };
     const Icon = selectedCategory ? ICONS[selectedCategory] : Bot;
     return (
       <div className={`transition-all duration-300 ease-in-out bg-card border-r border-border flex flex-col flex-shrink-0 ${isSidebarOpen ? 'w-64 p-4' : 'w-0 md:w-20 p-0 md:p-2 items-center'}`}>
         <div className={`flex items-center mb-4 pb-4 border-b border-border ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
-          {/* MODIFICATION: Made the Zappy logo a clickable button */}
           <button onClick={handleGoToLanding} className={`flex items-center gap-2 ${!isSidebarOpen && 'hidden'}`}>
             <Zap className="text-secondary" />
             <span className="text-xl font-bold">Zappy</span>
