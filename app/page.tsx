@@ -154,7 +154,7 @@ export default function Home() {
       const responseContent = completion.choices[0]?.message?.content;
       if (responseContent) {
           const parsedResponse = JSON.parse(responseContent);
-          let rawRecommendations = (Array.isArray(parsedResponse) ? parsedResponse : Object.values(parsedResponse)[0]) as Recommendation[];
+          const rawRecommendations = (Array.isArray(parsedResponse) ? parsedResponse : Object.values(parsedResponse)[0]) as Recommendation[];
           
           if (Array.isArray(rawRecommendations)) {
             console.log("Fetching images for recommendations with smart search...");

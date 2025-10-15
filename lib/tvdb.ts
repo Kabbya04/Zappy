@@ -6,6 +6,21 @@ let tokenCache = {
   expires: 0,
 };
 
+interface TVDBTitle {
+  id: number;
+  name: string;
+  slug: string;
+  year: string;
+  overview: string;
+  genres?: (string | { name: string })[];
+  image_url?: string;
+  type?: string;
+}
+
+interface TVDBSearchResponse {
+  data: TVDBTitle[];
+}
+
 /**
  * Authenticates with TheTVDB API and retrieves a JWT.
  */
@@ -65,8 +80,8 @@ export async function getRecentReleases(query: string, type: 'series' | 'movie')
     if (!allResults || allResults.length === 0) return null;
 
     const recentResults = allResults
-      .filter((item: any) => item.year && parseInt(item.year) >= cutoffYear)
-      .map((item: any) => `- "${item.name}" (${item.year}): ${item.overview}`)
+      .filter((item: TVDBTitle) => item.year && parseInt(item.year) >= cutoffYear)
+      .map((item: TVDBTitle) => `- "${item.name}" (${item.year}): ${item.overview}`)
       .join('\n');
       
     return recentResults.length > 0 ? recentResults : null;
@@ -91,13 +106,13 @@ export async function getConversationalContext(query: string): Promise<string | 
 
     if (!response.ok) return null;
 
-    const jsonResponse = await response.json();
+    const jsonResponse: TVDBSearchResponse = await response.json();
     const results = jsonResponse.data;
 
     if (!results || results.length === 0) return null;
 
     const context = results
-        .map((item: any) => `Title: ${item.name}\nYear: ${item.year}\nType: ${item.type}\nOverview: ${item.overview}`)
+        .map((item: TVDBTitle) => `Title: ${item.name}\nYear: ${item.year}\nType: ${item.type}\nOverview: ${item.overview}`)
         .join('\n\n');
 
     return context;
@@ -111,12 +126,12 @@ export async function getConversationalContext(query: string): Promise<string | 
  * Helper function to check if an entry has anime/animation genres.
  * Handles both string arrays and object arrays with 'name' property.
  */
-function hasAnimeGenre(item: any): boolean {
+function hasAnimeGenre(item: TVDBTitle): boolean {
   if (!item.genres || !Array.isArray(item.genres)) return false;
   
   const animeKeywords = ['anime', 'animation', 'animated'];
   
-  return item.genres.some((genre: any) => {
+  return item.genres.some((genre) => {
     // Handle if genre is an object with 'name' property
     if (typeof genre === 'object' && genre.name) {
       return animeKeywords.some(keyword => 
@@ -180,12 +195,12 @@ export async function getTVDBImage(query: string, type: 'series' | 'movie', cate
       console.log(`Processing Anime category - validating genres for ${candidates.length} candidates...`);
       
       // Log all candidates with their genres for debugging
-      candidates.forEach((item: any, index: number) => {
+      candidates.forEach((item: TVDBTitle, index: number) => {
         console.log(`  [${index + 1}] "${item.name}" (${item.year || 'N/A'}) - Genres: ${JSON.stringify(item.genres || 'None')}`);
       });
       
       // Step 3: Find first candidate with anime/animation genre
-      const animeMatch = candidates.find((item: any) => hasAnimeGenre(item));
+      const animeMatch = candidates.find((item: TVDBTitle) => hasAnimeGenre(item));
       
       if (animeMatch) {
         console.log(`✓ SUCCESS: Found anime genre match -> "${animeMatch.name}" (${animeMatch.year || 'N/A'})`);
@@ -197,7 +212,7 @@ export async function getTVDBImage(query: string, type: 'series' | 'movie', cate
       console.log(`Applying smart fallback: checking for non-live-action entries...`);
       
       // Try to avoid entries that explicitly mention "live action" or have recent years (likely live adaptations)
-      const likelyAnimeEntry = candidates.find((item: any) => {
+      const likelyAnimeEntry = candidates.find((item: TVDBTitle) => {
         const name = (item.name || '').toLowerCase();
         const overview = (item.overview || '').toLowerCase();
         const isLiveAction = name.includes('live action') || overview.includes('live action') || overview.includes('live-action');

@@ -7,6 +7,13 @@ interface RAWGGame {
   released: string; // Date of release
 }
 
+interface RAWGGameAPI {
+  name: string;
+  description_raw?: string;
+  description?: string;
+  released?: string;
+}
+
 /**
  * Searches for Games on RAWG based on a query string.
  * It uses the provided API key to fetch game data.
@@ -51,7 +58,7 @@ export async function searchGames(query: string): Promise<RAWGGame[] | null> {
 
     // Format the results to extract only the data we need
     // RAWG uses 'description_raw' for plain text description
-    return games.map((game: any) => ({
+    return games.map((game: RAWGGameAPI) => ({
       name: game.name,
       description: game.description_raw || game.description || "No description available.",
       released: game.released || "N/A",
