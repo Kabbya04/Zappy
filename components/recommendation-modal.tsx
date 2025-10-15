@@ -1,9 +1,9 @@
 // /components/recommendation-modal.tsx
 "use client";
 
-import { X } from 'lucide-react';
-import { useRef, useEffect } from 'react';
+import { X, Film } from 'lucide-react';
 
+// Interface for the recommendation object
 interface Recommendation {
   title: string;
   category: string;
@@ -11,53 +11,64 @@ interface Recommendation {
   imageUrl?: string;
 }
 
+// Interface for the component's props
 interface RecommendationModalProps {
   recommendation: Recommendation | null;
   onClose: () => void;
 }
 
 export const RecommendationModal = ({ recommendation, onClose }: RecommendationModalProps) => {
-  const cardRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleMouseMove = (e: globalThis.MouseEvent) => {
-      if (!cardRef.current) return;
-      cardRef.current.style.setProperty('--mouse-x', `${e.clientX}px`);
-      cardRef.current.style.setProperty('--mouse-y', `${e.clientY}px`);
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-    };
-  }, []);
-
+  // If no recommendation is passed, the modal doesn't render
   if (!recommendation) return null;
 
   return (
+    // The main modal container with the backdrop
     <div 
       className="fixed inset-0 bg-background/50 backdrop-blur-sm z-50 flex justify-center items-center transition-opacity duration-300 p-4"
-      onClick={onClose}
+      onClick={onClose} // Allows closing the modal by clicking the backdrop
     >
+      {/* A wrapper to prevent clicks inside the card from closing the modal */}
       <div 
         className="relative" 
         onClick={(e) => e.stopPropagation()}
       >
-        <div 
-          ref={cardRef}
-          style={{ backgroundImage: `url(${recommendation.imageUrl})` }}
-          className="glow-card relative bg-card text-card-foreground rounded-2xl shadow-2xl max-w-lg w-full border border-border bg-cover bg-center"
-        >
-          <div className="absolute inset-0 bg-black/70 rounded-2xl"></div>
-          <div className="p-6 md:p-8 relative z-[1]">
-            <span className="inline-block bg-primary/20 text-primary-foreground text-xs font-semibold px-2.5 py-0.5 rounded-full mb-3">
-              {recommendation.category}
-            </span>
-            <h2 className="text-2xl font-bold mb-4 text-white">{recommendation.title}</h2>
-            <p className="text-white/80 max-h-60 overflow-y-auto">
+        {/* MODIFICATION: The card content now mirrors the structure of recommendation-card.tsx */}
+        <div className="flex flex-col w-full bg-card border border-border rounded-lg shadow-xl md:flex-row md:max-w-2xl">
+          
+          {/* Image Container */}
+          <div className="relative w-full md:w-56 h-72 md:h-auto flex-shrink-0">
+            {recommendation.imageUrl ? (
+              <img 
+                className="object-cover w-full h-full rounded-t-lg md:rounded-none md:rounded-l-lg" 
+                src={recommendation.imageUrl} 
+                alt={`Thumbnail for ${recommendation.title}`} 
+              />
+            ) : (
+              // Fallback placeholder if no image is found
+              <div className="flex items-center justify-center w-full h-full bg-muted/50 rounded-t-lg md:rounded-none md:rounded-l-lg">
+                <Film className="w-16 h-16 text-muted-foreground/40" />
+              </div>
+            )}
+          </div>
+
+          {/* Text Content Container */}
+          <div className="flex flex-col justify-between p-6 leading-normal">
+            <div>
+              <span className="inline-block bg-primary/20 text-primary text-xs font-semibold px-2.5 py-0.5 rounded-full mb-2">
+                {recommendation.category}
+              </span>
+              <h2 className="mb-2 text-3xl font-bold tracking-tight text-card-foreground">
+                {recommendation.title}
+              </h2>
+            </div>
+            {/* Added a max-height and scrollbar for longer explanations */}
+            <p className="mb-3 font-normal text-card-foreground/70 max-h-48 overflow-y-auto">
               {recommendation.explanation}
             </p>
           </div>
         </div>
+
+        {/* The Close Button remains positioned relative to the wrapper */}
         <button 
           onClick={onClose}
           className="absolute -top-3 -right-3 z-50 flex h-8 w-8 items-center justify-center rounded-full bg-card border border-border text-muted-foreground/80 hover:text-muted-foreground hover:bg-muted transition-colors shadow-lg"

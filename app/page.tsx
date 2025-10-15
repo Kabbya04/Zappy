@@ -401,7 +401,7 @@ export default function Home() {
           <PageWrapper>
             <div className="text-center">
                 <h2 className="text-3xl font-bold text-center mb-6">{`Here are your recommendations!`}</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                <div className="flex flex-col items-center gap-6 max-w-3xl mx-auto">
                     {recommendations.map((rec, index) => <RecommendationCard key={index} {...rec} />)}
                 </div>
                 <div className="text-center mt-8">

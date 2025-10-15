@@ -107,58 +107,126 @@ export async function getConversationalContext(query: string): Promise<string | 
   }
 }
 
+/**
+ * Helper function to check if an entry has anime/animation genres.
+ * Handles both string arrays and object arrays with 'name' property.
+ */
+function hasAnimeGenre(item: any): boolean {
+  if (!item.genres || !Array.isArray(item.genres)) return false;
+  
+  const animeKeywords = ['anime', 'animation', 'animated'];
+  
+  return item.genres.some((genre: any) => {
+    // Handle if genre is an object with 'name' property
+    if (typeof genre === 'object' && genre.name) {
+      return animeKeywords.some(keyword => 
+        genre.name.toLowerCase().includes(keyword)
+      );
+    }
+    // Handle if genre is a plain string
+    if (typeof genre === 'string') {
+      return animeKeywords.some(keyword => 
+        genre.toLowerCase().includes(keyword)
+      );
+    }
+    return false;
+  });
+}
 
 /**
- * MODIFICATION: Implemented a resilient two-step search for images.
- * It first tries a specific "smart search" and then a broad "fallback search".
+ * IMPROVED: Robust anime thumbnail fetching with genre validation and smart fallbacks.
+ * 
+ * For Anime category:
+ * 1. Fetches top 5 search results
+ * 2. Prioritizes entries with "Anime" or "Animation" in their genres
+ * 3. Falls back intelligently if no genre match is found
+ * 
+ * For other categories:
+ * - Uses the top-ranked result from TVDB
  */
 export async function getTVDBImage(query: string, type: 'series' | 'movie', category: string): Promise<string | null> {
   const token = await getTVDBToken();
   if (!token) return null;
 
   try {
-    // --- Attempt 1: Smart Search (Title + Category) ---
-    // This is best for ambiguous titles to get the right media type (e.g., "Perfect Blue anime").
-    const smartSearchQuery = (category === 'Anime' || category === 'Movie') 
-        ? `${query} ${category}` 
-        : query;
-
-    console.log(`Attempting smart search for image with query: "${smartSearchQuery}"`);
-    const smartResponse = await fetch(`https://api4.thetvdb.com/v4/search?query=${encodeURIComponent(smartSearchQuery)}&type=${type}&limit=1`, {
-      headers: { "Authorization": `Bearer ${token}` },
-    });
-
-    if (smartResponse.ok) {
-      const jsonResponse = await smartResponse.json();
-      const imageUrl = jsonResponse.data?.[0]?.image_url;
-      if (imageUrl) {
-        console.log("Smart search successful.");
-        return imageUrl; // Success! Return the image URL.
+    // Step 1: Perform search with limit of 5 for top results
+    const searchLimit = 5;
+    console.log(`Searching TVDB for "${query}" (category: ${category}, type: ${type}) with limit ${searchLimit}...`);
+    
+    const response = await fetch(
+      `https://api4.thetvdb.com/v4/search?query=${encodeURIComponent(query)}&type=${type}&limit=${searchLimit}`, 
+      {
+        headers: { "Authorization": `Bearer ${token}` },
       }
+    );
+
+    if (!response.ok) {
+      console.error(`TVDB search failed with status ${response.status}`);
+      return null;
     }
 
-    // --- Attempt 2: Fallback Search (Title Only) ---
-    // If smart search fails, it might be a complex title. We try again with just the title.
-    console.log(`Smart search failed. Attempting fallback with just the title: "${query}"`);
-    const fallbackResponse = await fetch(`https://api4.thetvdb.com/v4/search?query=${encodeURIComponent(query)}&type=${type}&limit=1`, {
-      headers: { "Authorization": `Bearer ${token}` },
-    });
+    const jsonResponse = await response.json();
+    const candidates = jsonResponse.data || [];
 
-    if (fallbackResponse.ok) {
-      const jsonResponse = await fallbackResponse.json();
-      const imageUrl = jsonResponse.data?.[0]?.image_url;
-      if (imageUrl) {
-        console.log("Fallback search successful.");
-        return imageUrl; // Success on the fallback!
+    if (candidates.length === 0) {
+      console.warn(`No results found for query: "${query}"`);
+      return null;
+    }
+
+    console.log(`Found ${candidates.length} candidates for "${query}"`);
+
+    // Step 2: For Anime category, perform strict genre validation
+    if (category === 'Anime') {
+      console.log(`Processing Anime category - validating genres for ${candidates.length} candidates...`);
+      
+      // Log all candidates with their genres for debugging
+      candidates.forEach((item: any, index: number) => {
+        console.log(`  [${index + 1}] "${item.name}" (${item.year || 'N/A'}) - Genres: ${JSON.stringify(item.genres || 'None')}`);
+      });
+      
+      // Step 3: Find first candidate with anime/animation genre
+      const animeMatch = candidates.find((item: any) => hasAnimeGenre(item));
+      
+      if (animeMatch) {
+        console.log(`✓ SUCCESS: Found anime genre match -> "${animeMatch.name}" (${animeMatch.year || 'N/A'})`);
+        return animeMatch.image_url || null;
       }
+      
+      // Step 4: Smart fallback for anime - skip live-action adaptations
+      console.warn(`⚠ No anime genre found in top ${searchLimit} results for "${query}"`);
+      console.log(`Applying smart fallback: checking for non-live-action entries...`);
+      
+      // Try to avoid entries that explicitly mention "live action" or have recent years (likely live adaptations)
+      const likelyAnimeEntry = candidates.find((item: any) => {
+        const name = (item.name || '').toLowerCase();
+        const overview = (item.overview || '').toLowerCase();
+        const isLiveAction = name.includes('live action') || overview.includes('live action') || overview.includes('live-action');
+        
+        // If it's explicitly live action, skip it
+        if (isLiveAction) {
+          console.log(`  Skipping "${item.name}" - detected as live action`);
+          return false;
+        }
+        
+        return true;
+      });
+      
+      if (likelyAnimeEntry) {
+        console.log(`✓ Fallback applied: Using "${likelyAnimeEntry.name}" (avoided live-action entries)`);
+        return likelyAnimeEntry.image_url || null;
+      }
+      
+      // Ultimate fallback - use first result but log warning
+      console.warn(`⚠ Ultimate fallback: Using first result "${candidates[0].name}"`);
+      return candidates[0]?.image_url || null;
     }
     
-    // If both attempts fail, we log it and return null.
-    console.warn(`Both smart and fallback searches failed for title: "${query}"`);
-    return null;
+    // Step 5: For non-anime categories (Movie, TV Series), use top result
+    console.log(`Using top-ranked result for ${category}: "${candidates[0].name}"`);
+    return candidates[0]?.image_url || null;
 
   } catch (error) {
-    console.error(`An error occurred during image search for "${query}":`, error);
+    console.error(`Error fetching image for "${query}":`, error);
     return null;
   }
 }

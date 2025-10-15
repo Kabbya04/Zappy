@@ -1,7 +1,7 @@
 // /components/recommendation-card.tsx
 "use client";
 
-import { useRef, useEffect } from 'react';
+import { Film } from 'lucide-react'; // Using an icon for the placeholder
 
 interface RecommendationCardProps {
   title: string;
@@ -11,36 +11,39 @@ interface RecommendationCardProps {
 }
 
 export const RecommendationCard = ({ title, category, explanation, imageUrl }: RecommendationCardProps) => {
-  const cardRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const card = cardRef.current;
-    if (!card) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      card.style.setProperty('--mouse-x', `${e.clientX}px`);
-      card.style.setProperty('--mouse-y', `${e.clientY}px`);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-    };
-  }, []);
-
   return (
-    <div 
-      ref={cardRef}
-      style={{ backgroundImage: `url(${imageUrl})` }}
-      className="glow-card relative bg-card text-card-foreground p-6 rounded-2xl shadow-lg w-full border border-border bg-cover bg-center"
-    >
-      <div className="absolute inset-0 bg-black/60 rounded-2xl"></div>
-      <div className="relative z-10 transition-transform transform hover:scale-105">
-        <span className="inline-block bg-primary/20 text-primary-foreground text-xs font-semibold px-2.5 py-0.5 rounded-full mb-2">
-          {category}
-        </span>
-        <h3 className="text-xl font-bold mb-2 text-white">{title}</h3>
-        <p className="text-white/80">{explanation}</p>
+    // The main container, adapting the reference style to our theme
+    <div className="flex flex-col items-center bg-card border border-border rounded-lg shadow-sm md:flex-row md:max-w-xl hover:bg-muted/40 transition-colors duration-200">
+      
+      {/* Image Container */}
+      <div className="relative w-full md:w-48 h-64 md:h-auto flex-shrink-0">
+        {imageUrl ? (
+          <img 
+            className="object-cover w-full h-full rounded-t-lg md:rounded-none md:rounded-l-lg" 
+            src={imageUrl} 
+            alt={`Thumbnail for ${title}`} 
+          />
+        ) : (
+          // Fallback placeholder if no image is found
+          <div className="flex items-center justify-center w-full h-full bg-muted/50 rounded-t-lg md:rounded-none md:rounded-l-lg">
+            <Film className="w-12 h-12 text-muted-foreground/40" />
+          </div>
+        )}
+      </div>
+
+      {/* Text Content Container */}
+      <div className="flex flex-col justify-between p-4 leading-normal">
+        <div>
+          <span className="inline-block bg-primary/20 text-primary text-xs font-semibold px-2.5 py-0.5 rounded-full mb-2">
+            {category}
+          </span>
+          <h5 className="mb-2 text-2xl font-bold tracking-tight text-card-foreground">
+            {title}
+          </h5>
+        </div>
+        <p className="mb-3 font-normal text-card-foreground/70">
+          {explanation}
+        </p>
       </div>
     </div>
   );
