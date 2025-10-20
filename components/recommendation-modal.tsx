@@ -2,6 +2,7 @@
 "use client";
 
 import { X, Film } from 'lucide-react';
+import Image from 'next/image';
 
 // Interface for the recommendation object
 interface Recommendation {
@@ -38,10 +39,12 @@ export const RecommendationModal = ({ recommendation, onClose }: RecommendationM
           {/* Image Container */}
           <div className="relative w-full md:w-56 h-72 md:h-auto flex-shrink-0">
             {recommendation.imageUrl ? (
-              <img 
-                className="object-cover w-full h-full rounded-t-lg md:rounded-none md:rounded-l-lg" 
+              <Image 
+                className="object-cover rounded-t-lg md:rounded-none md:rounded-l-lg" 
                 src={recommendation.imageUrl} 
                 alt={`Thumbnail for ${recommendation.title}`} 
+                fill
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
               />
             ) : (
               // Fallback placeholder if no image is found

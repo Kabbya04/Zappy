@@ -12,6 +12,7 @@ interface TVDBTitle {
   slug: string;
   year: string;
   overview: string;
+  first_aired?: string; // Important for filtering released content
   genres?: (string | { name: string })[];
   image_url?: string;
   type?: string;
@@ -59,16 +60,18 @@ async function getTVDBToken(): Promise<string | null> {
 }
 
 /**
- * Searches TheTVDB for recent releases to use as initial LLM context.
+ * MODIFICATION: Fetches the latest/most popular media and filters out unreleased titles.
  */
-export async function getRecentReleases(query: string, type: 'series' | 'movie'): Promise<string | null> {
+export async function getLatestMedia(type: 'series' | 'movie'): Promise<string | null> {
   const token = await getTVDBToken();
   if (!token) return null;
 
-  const cutoffYear = 2023;
+  const endpoint = type === 'movie' ? 'movies' : 'series';
+  // Use the filter endpoint, sorting by the most recently aired/released from recent years.
+  const url = `https://api4.thetvdb.com/v4/${endpoint}/filter?sort=first_aired&sort_direction=desc&year=2023-2025`;
 
   try {
-    const response = await fetch(`https://api4.thetvdb.com/v4/search?query=${encodeURIComponent(query)}&type=${type}&limit=10`, {
+    const response = await fetch(url, {
       headers: { "Authorization": `Bearer ${token}` },
     });
 
@@ -79,15 +82,25 @@ export async function getRecentReleases(query: string, type: 'series' | 'movie')
 
     if (!allResults || allResults.length === 0) return null;
 
-    const recentResults = allResults
-      .filter((item: TVDBTitle) => item.year && parseInt(item.year) >= cutoffYear)
+    // MODIFICATION: Filter out titles with a future release date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to start of day for comparison
+    const releasedResults = allResults.filter((item: TVDBTitle) => {
+        if (!item.first_aired) return false; // Exclude items without a release date
+        const releaseDate = new Date(item.first_aired);
+        return releaseDate <= today;
+    }).slice(0, 15); // Take the top 15 of the *released* items
+
+    if (releasedResults.length === 0) return null;
+
+    const contextString = releasedResults
       .map((item: TVDBTitle) => `- "${item.name}" (${item.year}): ${item.overview}`)
       .join('\n');
       
-    return recentResults.length > 0 ? recentResults : null;
+    return contextString.length > 0 ? contextString : null;
 
   } catch (error) {
-    console.error(`Error fetching recent releases from TheTVDB:`, error);
+    console.error(`Error fetching latest media from TheTVDB:`, error);
     return null;
   }
 }
@@ -150,21 +163,12 @@ function hasAnimeGenre(item: TVDBTitle): boolean {
 
 /**
  * IMPROVED: Robust anime thumbnail fetching with genre validation and smart fallbacks.
- * 
- * For Anime category:
- * 1. Fetches top 5 search results
- * 2. Prioritizes entries with "Anime" or "Animation" in their genres
- * 3. Falls back intelligently if no genre match is found
- * 
- * For other categories:
- * - Uses the top-ranked result from TVDB
  */
 export async function getTVDBImage(query: string, type: 'series' | 'movie', category: string): Promise<string | null> {
   const token = await getTVDBToken();
   if (!token) return null;
 
   try {
-    // Step 1: Perform search with limit of 5 for top results
     const searchLimit = 5;
     console.log(`Searching TVDB for "${query}" (category: ${category}, type: ${type}) with limit ${searchLimit}...`);
     
@@ -190,16 +194,13 @@ export async function getTVDBImage(query: string, type: 'series' | 'movie', cate
 
     console.log(`Found ${candidates.length} candidates for "${query}"`);
 
-    // Step 2: For Anime category, perform strict genre validation
     if (category === 'Anime') {
       console.log(`Processing Anime category - validating genres for ${candidates.length} candidates...`);
       
-      // Log all candidates with their genres for debugging
       candidates.forEach((item: TVDBTitle, index: number) => {
         console.log(`  [${index + 1}] "${item.name}" (${item.year || 'N/A'}) - Genres: ${JSON.stringify(item.genres || 'None')}`);
       });
       
-      // Step 3: Find first candidate with anime/animation genre
       const animeMatch = candidates.find((item: TVDBTitle) => hasAnimeGenre(item));
       
       if (animeMatch) {
@@ -207,17 +208,14 @@ export async function getTVDBImage(query: string, type: 'series' | 'movie', cate
         return animeMatch.image_url || null;
       }
       
-      // Step 4: Smart fallback for anime - skip live-action adaptations
       console.warn(`⚠ No anime genre found in top ${searchLimit} results for "${query}"`);
       console.log(`Applying smart fallback: checking for non-live-action entries...`);
       
-      // Try to avoid entries that explicitly mention "live action" or have recent years (likely live adaptations)
       const likelyAnimeEntry = candidates.find((item: TVDBTitle) => {
         const name = (item.name || '').toLowerCase();
         const overview = (item.overview || '').toLowerCase();
         const isLiveAction = name.includes('live action') || overview.includes('live action') || overview.includes('live-action');
         
-        // If it's explicitly live action, skip it
         if (isLiveAction) {
           console.log(`  Skipping "${item.name}" - detected as live action`);
           return false;
@@ -231,12 +229,10 @@ export async function getTVDBImage(query: string, type: 'series' | 'movie', cate
         return likelyAnimeEntry.image_url || null;
       }
       
-      // Ultimate fallback - use first result but log warning
       console.warn(`⚠ Ultimate fallback: Using first result "${candidates[0].name}"`);
       return candidates[0]?.image_url || null;
     }
     
-    // Step 5: For non-anime categories (Movie, TV Series), use top result
     console.log(`Using top-ranked result for ${category}: "${candidates[0].name}"`);
     return candidates[0]?.image_url || null;
 

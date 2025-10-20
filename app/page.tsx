@@ -10,19 +10,16 @@ import { RecommendationModal } from '@/components/recommendation-modal';
 import Groq from 'groq-sdk';
 import { useTheme } from 'next-themes';
 import { Sun, Moon, Send, RefreshCw, Bot, Film, Gamepad2, CornerDownLeft, Zap, PanelLeftClose, PanelLeftOpen, Tv2 } from 'lucide-react';
-import { getRecentReleases, getTVDBImage, getConversationalContext } from '@/lib/tvdb';
+import { getLatestMedia, getTVDBImage, getConversationalContext } from '@/lib/tvdb';
+import { getLatestGames, getRawgImage } from '@/lib/rawg';
 
 // --- Interface Definitions ---
 interface Recommendation { title: string; category: string; explanation: string; imageUrl?: string; }
 interface Message { role: 'user' | 'assistant'; content: string; }
 type Category = 'Game' | 'Anime' | 'Movie' | 'TV Series';
 
-// Helper function to clean LLM-generated titles for better API searching.
 const cleanTitleForSearch = (title: string): string => {
-  return title.replace(/\s*\(Season\s\d+\)/i, '')
-              .replace(/\s*:\s*(Part|Season)\s\d+/i, '')
-              .replace(/\s*-\s*Season\s\d+/i, '')
-              .trim();
+  return title.replace(/\s*\(Season\s\d+\)/i, '').replace(/\s*:\s*(Part|Season)\s\d+/i, '').replace(/\s*-\s*Season\s\d+/i, '').trim();
 };
 
 const predefinedPrompts = [
@@ -82,22 +79,43 @@ export default function Home() {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const { theme, setTheme } = useTheme();
   
-  const [initialContext, setInitialContext] = useState('');
-  
+  const [latestMoviesContext, setLatestMoviesContext] = useState('');
+  const [latestTVContext, setLatestTVContext] = useState('');
+  const [latestAnimeContext, setLatestAnimeContext] = useState('');
+  const [latestGamesContext, setLatestGamesContext] = useState('');
+  const [isContextLoading, setIsContextLoading] = useState(true);
+  const [sessionId, setSessionId] = useState(0);
+
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => { setIsMounted(true); }, []);
   
   useEffect(() => {
-    if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-  }, [chatHistory]);
+    const fetchInitialContext = async () => {
+      setIsContextLoading(true);
+      console.log("Fetching initial context for all categories...");
+      try {
+        const [movies, series, games] = await Promise.all([
+          getLatestMedia('movie'),
+          getLatestMedia('series'),
+          getLatestGames(),
+        ]);
+        setLatestMoviesContext(movies || '');
+        setLatestTVContext(series || '');
+        setLatestAnimeContext(series || '');
+        setLatestGamesContext(games || '');
+        console.log("Initial context fetched successfully.");
+      } catch (error) {
+        console.error("Failed to fetch initial context:", error);
+        alert("Could not load the latest data. Recommendations may be limited.");
+      } finally {
+        setIsContextLoading(false);
+      }
+    };
+    fetchInitialContext();
+  }, [sessionId]);
 
   useEffect(() => {
-    const userMessagesCount = chatHistory.filter(msg => msg.role === 'user').length;
-    if (userMessagesCount === 15) alert("You're approaching the conversation limit!");
-    if (userMessagesCount >= 20) {
-        alert("Conversation limit reached. Starting over!");
-        handleStartOver();
-    }
+    if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
   }, [chatHistory]);
 
   const handleAnswer = (answer: string) => {
@@ -127,22 +145,23 @@ export default function Home() {
     const groq = new Groq({ apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY, dangerouslyAllowBrowser: true });
     setIsLoading(true);
     setRecommendations([]);
-    setInitialContext('');
 
     const category = finalAnswers[0] as Category;
     const userPreferences = finalAnswers.slice(1).join(', ');
-    
-    const searchType = category === 'Movie' ? 'movie' : 'series';
-    console.log(`Fetching recent releases for "${category}" from TheTVDB...`);
-    const recentReleases = await getRecentReleases(userPreferences, searchType);
-    
-    const contextString = recentReleases
-      ? `To ensure your recommendations are current, consider this list of recent releases (from 2023 onwards) that match the user's preferences:\n${recentReleases}\n\n`
-      : "";
-      
-    setInitialContext(contextString);
-    
-    const prompt = `${contextString}You are Zappy, an expert recommender for ${category}s. A user has provided the following preferences: ${userPreferences}. Based ONLY on these preferences and prioritizing the recent releases list if relevant, provide exactly three ${category} recommendations. Format the output as a valid JSON array of objects. Each object must have "title", "category", and "explanation" keys. Do not include any other text or explanations outside of the JSON array.`;
+
+    let contextString = "";
+    switch (category) {
+      case 'Game': contextString = latestGamesContext; break;
+      case 'Movie': contextString = latestMoviesContext; break;
+      case 'Anime': contextString = latestAnimeContext; break;
+      case 'TV Series': contextString = latestTVContext; break;
+    }
+
+    const contextForPrompt = contextString
+        ? `To ensure your recommendations are current, use this list of recent and popular titles as a primary guide:\n${contextString}\n\n`
+        : "";
+
+    const prompt = `${contextForPrompt}You are Zappy, an expert recommender for ${category}s. A user has provided the following preferences: ${userPreferences}. Based on the user's preferences, and using the provided list as a guide for recent and popular titles, provide exactly three ${category} recommendations. You can use your own knowledge in addition to the list. Crucially, do not recommend any titles that have a release date in the future. Only recommend titles that are already released. Format the output as a valid JSON array of objects. Each object must have "title", "category", and "explanation" keys. Do not include any other text or explanations outside of the JSON array.`;
     
     try {
       const completion = await groq.chat.completions.create({
@@ -157,12 +176,15 @@ export default function Home() {
           const rawRecommendations = (Array.isArray(parsedResponse) ? parsedResponse : Object.values(parsedResponse)[0]) as Recommendation[];
           
           if (Array.isArray(rawRecommendations)) {
-            console.log("Fetching images for recommendations with smart search...");
+            console.log("Fetching images for recommendations...");
             
             const recommendationsWithImages = await Promise.all(
               rawRecommendations.map(async (rec) => {
                 const cleanedTitle = cleanTitleForSearch(rec.title);
-                const imageUrl = await getTVDBImage(cleanedTitle, searchType, category);
+                const searchType = category === 'Movie' ? 'movie' : 'series';
+                const imageUrl = category === 'Game'
+                  ? await getRawgImage(cleanedTitle)
+                  : await getTVDBImage(cleanedTitle, searchType, category);
                 return { ...rec, title: cleanedTitle, category, imageUrl: imageUrl || undefined };
               })
             );
@@ -183,24 +205,51 @@ export default function Home() {
     }
   };
   
+  // MODIFICATION: The entire conversational logic is updated for better context handling.
   const handleSendMessage = async (messageOverride?: string) => {
     const groq = new Groq({ apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY, dangerouslyAllowBrowser: true });
     if (chatHistory.length === 0) setIsSidebarOpen(true);
     const message = messageOverride || userInput;
     if (!message.trim()) return;
+    
     const newUserMessage: Message = { role: 'user', content: message };
     const newChatHistory = [...chatHistory, newUserMessage];
     setChatHistory(newChatHistory);
     setUserInput('');
     setIsLoading(true);
 
-    console.log(`Fetching conversational context for: "${message}"`);
-    const conversationalContextData = await getConversationalContext(message);
-    const conversationalContext = conversationalContextData
-      ? `To help answer the user's latest message, here is some specific, real-time information I found:\n${conversationalContextData}\n\n`
+    // 1. Get the general session memory for the current category.
+    let generalContext = '';
+    if (selectedCategory) {
+        switch (selectedCategory) {
+            case 'Game': generalContext = latestGamesContext; break;
+            case 'Movie': generalContext = latestMoviesContext; break;
+            case 'Anime': generalContext = latestAnimeContext; break;
+            case 'TV Series': generalContext = latestTVContext; break;
+        }
+    }
+    
+    // 2. Search for specific context based on the user's actual message.
+    console.log(`Searching for conversational context based on: "${message}"`);
+    const specificContextData = await getConversationalContext(message);
+
+    // 3. Build a more authoritative prompt.
+    const generalContextForPrompt = generalContext
+      ? `[GENERAL CONTEXT - A list of recent and popular titles for your reference]:\n${generalContext}\n\n`
       : "";
 
-    const contextPrompt = `${initialContext}${conversationalContext}You are Zappy, a helpful assistant. The user was recommended: ${recommendations.map(r => r.title).join(', ')}. Your instructions are: 1. Use the real-time information provided above to answer questions about specific titles, especially recent ones. 2. If the real-time info is empty, rely on your general knowledge. 3. Only answer questions related to entertainment. Politely decline otherwise. 4. Keep your answers concise.`;
+    const specificContextForPrompt = specificContextData
+      ? `[SPECIFIC INFORMATION - This is highly relevant to the user's last message]:\n${specificContextData}\n\n`
+      : "";
+
+    const contextPrompt = `You are Zappy, a helpful and knowledgeable entertainment recommender.
+${generalContextForPrompt}${specificContextForPrompt}
+Your instructions are as follows:
+1.  **Prioritize Information**: Your primary goal is to use the real-time information provided above. If [SPECIFIC INFORMATION] is available, it is the most important and should be treated as the source of truth for your answer. If it is empty, use the [GENERAL CONTEXT] as a reference for recent titles. Only if both are empty should you rely solely on your own internal knowledge.
+2.  **Be Honest**: If you cannot find the requested information in the provided context or your own knowledge, clearly state that you don't have details about it. Do not invent or hallucinate information.
+3.  **Stay on Topic**: Only answer questions related to entertainment (games, movies, anime, TV). Politely decline any other topics.
+4.  **Be Concise**: Keep your answers helpful and to the point.
+The user was previously recommended: ${recommendations.map(r => r.title).join(', ')}.`;
     
     try {
         const completion = await groq.chat.completions.create({
@@ -232,16 +281,24 @@ export default function Home() {
     setAppState('questionnaire');
     setIsOtherSelected(false);
     setOtherAnswerText('');
-    setInitialContext('');
+    setSessionId(id => id + 1);
   };
 
   const handleGoToLanding = () => {
     handleStartOver();
     setShowLanding(true);
-  }
-
+  };
+  
   if (showLanding) {
-    return (
+      if (isContextLoading) {
+          return (
+              <div className="w-screen h-screen flex flex-col items-center justify-center bg-background text-foreground">
+                  <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-primary"></div>
+                  <p className="mt-4 text-lg text-muted-foreground">Warming up Zappy...</p>
+              </div>
+          );
+      }
+      return (
         <LampContainer>
             <motion.h1
                 initial={{ opacity: 0.5, y: 100 }}
@@ -291,7 +348,7 @@ export default function Home() {
                 </button>
             </motion.div>
         </LampContainer>
-    );
+      );
   }
 
   // --- Main App Components ---

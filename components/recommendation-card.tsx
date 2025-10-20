@@ -2,6 +2,7 @@
 "use client";
 
 import { Film } from 'lucide-react'; // Using an icon for the placeholder
+import Image from 'next/image';
 
 interface RecommendationCardProps {
   title: string;
@@ -18,10 +19,12 @@ export const RecommendationCard = ({ title, category, explanation, imageUrl }: R
       {/* Image Container */}
       <div className="relative w-full md:w-48 h-64 md:h-auto flex-shrink-0">
         {imageUrl ? (
-          <img 
-            className="object-cover w-full h-full rounded-t-lg md:rounded-none md:rounded-l-lg" 
+          <Image 
+            className="object-cover rounded-t-lg md:rounded-none md:rounded-l-lg" 
             src={imageUrl} 
             alt={`Thumbnail for ${title}`} 
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           />
         ) : (
           // Fallback placeholder if no image is found
