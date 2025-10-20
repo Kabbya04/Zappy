@@ -3,7 +3,6 @@
 [![Next.js](https://img.shields.io/badge/Next.js-14.x-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.x-blue?style=for-the-badge&logo=tailwind-css)](https://tailwindcss.com/)
 [![Groq API](https://img.shields.io/badge/Powered_by-Groq-orange?style=for-the-badge)](https://groq.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 An intelligent, conversational recommender for Games, Anime, and Movies powered by the lightning-fast Groq Cloud API and Next.js.
 
@@ -99,11 +98,17 @@ zappy/
 │   └── page.tsx            # The main application component
 ├── components/
 │   ├── chat-message.tsx    # Component for a single chat bubble
+│   ├── lamp.tsx            # Animated lamp component for UI effects
 │   ├── recommendation-card.tsx # Card to display a single recommendation
 │   ├── recommendation-modal.tsx# Modal for recommendation details
 │   └── theme-provider.tsx  # Logic for next-themes
 ├── lib/
-│   └── questions.ts        # Defines the questionnaire structure
-├── public/
-└── tailwind.config.ts      # Tailwind CSS configuration
+│   ├── questions.ts        # Defines the questionnaire structure
+│   ├── rawg.ts             # RAWG API integration for games data
+│   ├── tvdb.ts             # TVDB API integration for TV shows data
+│   └── utils.ts            # Utility functions
+├── public/                 # Static assets
+│   ├── zappy.png           # Zappy logo
+│   └── ...                 # Other static assets
+└── ...
 ```
