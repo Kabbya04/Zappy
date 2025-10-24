@@ -79,6 +79,9 @@ export async function getRawgImage(query: string): Promise<string | null> {
       }
       const jsonResponse = await response.json();
       const game = jsonResponse.results?.[0];
+      console.log(`RAWG image search for "${query}" returned:`, game);
+      console.log("Background image URL:", game?.background_image);
+      console.log("Background image URL type:", typeof game?.background_image);
       return game?.background_image || null;
     } catch (error) {
       console.error(`Error fetching RAWG image for "${query}":`, error);

@@ -3,6 +3,7 @@
 
 import { Film } from 'lucide-react'; // Using an icon for the placeholder
 import Image from 'next/image';
+import { useState, useEffect } from 'react';
 
 interface RecommendationCardProps {
   title: string;
@@ -12,19 +13,34 @@ interface RecommendationCardProps {
 }
 
 export const RecommendationCard = ({ title, category, explanation, imageUrl }: RecommendationCardProps) => {
+  const [imageError, setImageError] = useState(false);
+  
+  // Reset error state when imageUrl changes
+  useEffect(() => {
+    setImageError(false);
+  }, [imageUrl]);
+
   return (
     // The main container, adapting the reference style to our theme
     <div className="flex flex-col items-center bg-card border border-border rounded-lg shadow-sm md:flex-row md:max-w-xl hover:bg-muted/40 transition-colors duration-200">
       
       {/* Image Container */}
       <div className="relative w-full md:w-48 h-64 md:h-auto flex-shrink-0">
-        {imageUrl ? (
+        {imageUrl && !imageError ? (
           <Image 
             className="object-cover rounded-t-lg md:rounded-none md:rounded-l-lg" 
             src={imageUrl} 
             alt={`Thumbnail for ${title}`} 
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            onError={(e) => {
+              console.log(`Failed to load image: ${imageUrl}`);
+              console.log('Error details:', e);
+              setImageError(true);
+            }}
+            onLoad={() => {
+              console.log(`Successfully loaded image: ${imageUrl}`);
+            }}
           />
         ) : (
           // Fallback placeholder if no image is found

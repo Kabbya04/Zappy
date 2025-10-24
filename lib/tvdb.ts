@@ -192,7 +192,12 @@ export async function getTVDBImage(query: string, type: 'series' | 'movie', cate
       return null;
     }
 
-    console.log(`Found ${candidates.length} candidates for "${query}"`);
+    console.log(`Found ${candidates.length} candidates for "${query}"`, candidates);
+
+    // Log the exact structure of the first candidate to understand the image_url format
+    if (candidates[0]) {
+      console.log("First candidate structure:", JSON.stringify(candidates[0], null, 2));
+    }
 
     if (category === 'Anime') {
       console.log(`Processing Anime category - validating genres for ${candidates.length} candidates...`);
@@ -205,6 +210,8 @@ export async function getTVDBImage(query: string, type: 'series' | 'movie', cate
       
       if (animeMatch) {
         console.log(`✓ SUCCESS: Found anime genre match -> "${animeMatch.name}" (${animeMatch.year || 'N/A'})`);
+        console.log("Image URL for anime match:", animeMatch.image_url);
+        console.log("Image URL type:", typeof animeMatch.image_url);
         return animeMatch.image_url || null;
       }
       
@@ -226,14 +233,20 @@ export async function getTVDBImage(query: string, type: 'series' | 'movie', cate
       
       if (likelyAnimeEntry) {
         console.log(`✓ Fallback applied: Using "${likelyAnimeEntry.name}" (avoided live-action entries)`);
+        console.log("Image URL for likely anime entry:", likelyAnimeEntry.image_url);
+        console.log("Image URL type:", typeof likelyAnimeEntry.image_url);
         return likelyAnimeEntry.image_url || null;
       }
       
       console.warn(`⚠ Ultimate fallback: Using first result "${candidates[0].name}"`);
+      console.log("Image URL for first result:", candidates[0]?.image_url);
+      console.log("Image URL type:", typeof (candidates[0]?.image_url));
       return candidates[0]?.image_url || null;
     }
     
     console.log(`Using top-ranked result for ${category}: "${candidates[0].name}"`);
+    console.log("Image URL for top result:", candidates[0]?.image_url);
+    console.log("Image URL type:", typeof (candidates[0]?.image_url));
     return candidates[0]?.image_url || null;
 
   } catch (error) {

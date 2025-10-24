@@ -12,6 +12,7 @@ import { useTheme } from 'next-themes';
 import { Sun, Moon, Send, RefreshCw, Bot, Film, Gamepad2, CornerDownLeft, Zap, PanelLeftClose, PanelLeftOpen, Tv2 } from 'lucide-react';
 import { getLatestMedia, getTVDBImage, getConversationalContext } from '@/lib/tvdb';
 import { getLatestGames, getRawgImage } from '@/lib/rawg';
+import { formatImageUrl } from '@/lib/utils';
 
 // --- Interface Definitions ---
 interface Recommendation { title: string; category: string; explanation: string; imageUrl?: string; }
@@ -181,11 +182,15 @@ export default function Home() {
             const recommendationsWithImages = await Promise.all(
               rawRecommendations.map(async (rec) => {
                 const cleanedTitle = cleanTitleForSearch(rec.title);
+                console.log(`Cleaned title for search: "${cleanedTitle}" (original: "${rec.title}")`); // <-- ADDED LOG
                 const searchType = category === 'Movie' ? 'movie' : 'series';
                 const imageUrl = category === 'Game'
                   ? await getRawgImage(cleanedTitle)
                   : await getTVDBImage(cleanedTitle, searchType, category);
-                return { ...rec, title: cleanedTitle, category, imageUrl: imageUrl || undefined };
+                console.log(`Image URL for "${cleanedTitle}":`, imageUrl); // <-- EXISTING LOG
+                const formattedImageUrl = imageUrl ? formatImageUrl(imageUrl) : null;
+                console.log(`Formatted image URL for "${cleanedTitle}":`, formattedImageUrl); // <-- EXISTING LOG
+                return { ...rec, title: cleanedTitle, category, imageUrl: formattedImageUrl || undefined };
               })
             );
 
