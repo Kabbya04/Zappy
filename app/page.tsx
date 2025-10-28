@@ -1,12 +1,14 @@
+// app/page.tsx
+
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Groq from 'groq-sdk';
 import { useTheme } from 'next-themes';
-import { RefreshCw, Zap } from 'lucide-react';
 import { getLatestMedia, getTVDBImage, getConversationalContext } from '@/lib/tvdb';
 import { getLatestGames, getRawgImage } from '@/lib/rawg';
 import { formatImageUrl } from '@/lib/utils';
+import { initialQuestion, questionSets } from '@/lib/questions';
 import LandingPage from '@/app/landing/page';
 import QuestionnairePage from '@/app/questionnaire/page';
 import RecommendationsPage from '@/app/recommendations/page';
@@ -26,7 +28,7 @@ interface Message {
   content: string; 
 }
 
-type Category = 'Game' | 'Anime' | 'Movie' | 'TV Series';
+type Category = keyof typeof questionSets;
 
 const cleanTitleForSearch = (title: string): string => {
   return title.replace(/\s*\(Season\s\d+\)/i, '').replace(/\s*:\s*(Part|Season)\s\d+/i, '').replace(/\s*-\s*Season\s\d+/i, '').trim();
@@ -36,7 +38,6 @@ const cleanTitleForSearch = (title: string): string => {
 export default function Home() {
   const [showLanding, setShowLanding] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isOtherSelected, setIsOtherSelected] = useState(false);
   const [otherAnswerText, setOtherAnswerText] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -47,8 +48,9 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [appState, setAppState] = useState<'questionnaire' | 'recommendations' | 'chat'>('questionnaire');
   const [modalContent, setModalContent] = useState<Recommendation | null>(null);
-  const { theme, setTheme } = useTheme();
   
+  const [tempAnswer, setTempAnswer] = useState<string | null>(null);
+
   const [latestMoviesContext, setLatestMoviesContext] = useState('');
   const [latestTVContext, setLatestTVContext] = useState('');
   const [latestAnimeContext, setLatestAnimeContext] = useState('');
@@ -81,12 +83,27 @@ export default function Home() {
     fetchInitialContext();
   }, [sessionId]);
 
-  const handleAnswer = (answer: string) => {
-    if (!selectedCategory) {
-      setSelectedCategory(answer as Category);
-      setAnswers([answer]);
+  const handleOptionSelect = (option: string) => {
+    if (option === tempAnswer) {
+      setTempAnswer(null); 
     } else {
-      const newAnswers = [...answers, answer];
+      setTempAnswer(option);
+      if (option !== 'Other') {
+        setOtherAnswerText(''); 
+      }
+    }
+  };
+
+  const handleNext = () => {
+    const answerToSubmit = tempAnswer === 'Other' ? otherAnswerText.trim() : tempAnswer;
+
+    if (!answerToSubmit) return;
+
+    if (!selectedCategory) {
+      setSelectedCategory(answerToSubmit as Category);
+      setAnswers([answerToSubmit]);
+    } else {
+      const newAnswers = [...answers, answerToSubmit];
       setAnswers(newAnswers);
       const questionSet = questionSets[selectedCategory];
       if (currentQuestionIndex < questionSet.length - 1) {
@@ -96,12 +113,21 @@ export default function Home() {
         getRecommendations(newAnswers);
       }
     }
-    setIsOtherSelected(false);
+    setTempAnswer(null);
     setOtherAnswerText('');
   };
 
-  const handleOtherSubmit = () => {
-    if (otherAnswerText.trim()) handleAnswer(otherAnswerText.trim());
+  const handleBack = () => {
+    setTempAnswer(null);
+    setOtherAnswerText('');
+
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(prev => prev - 1);
+      setAnswers(prev => prev.slice(0, prev.length - 1));
+    } else if (selectedCategory) {
+      setSelectedCategory(null);
+      setAnswers([]);
+    }
   };
 
   const getRecommendations = async (finalAnswers: string[]) => {
@@ -139,23 +165,17 @@ export default function Home() {
           const rawRecommendations = (Array.isArray(parsedResponse) ? parsedResponse : Object.values(parsedResponse)[0]) as Recommendation[];
           
           if (Array.isArray(rawRecommendations)) {
-            console.log("Fetching images for recommendations...");
-            
             const recommendationsWithImages = await Promise.all(
               rawRecommendations.map(async (rec) => {
                 const cleanedTitle = cleanTitleForSearch(rec.title);
-                console.log(`Cleaned title for search: "${cleanedTitle}" (original: "${rec.title}")`); // <-- ADDED LOG
                 const searchType = category === 'Movie' ? 'movie' : 'series';
                 const imageUrl = category === 'Game'
                   ? await getRawgImage(cleanedTitle)
                   : await getTVDBImage(cleanedTitle, searchType, category);
-                console.log(`Image URL for "${cleanedTitle}":`, imageUrl); // <-- EXISTING LOG
                 const formattedImageUrl = imageUrl ? formatImageUrl(imageUrl) : null;
-                console.log(`Formatted image URL for "${cleanedTitle}":`, formattedImageUrl); // <-- EXISTING LOG
                 return { ...rec, title: cleanedTitle, category, imageUrl: formattedImageUrl || undefined };
               })
             );
-
             setRecommendations(recommendationsWithImages);
           } else {
             throw new Error("Parsed JSON from LLM was not a valid array.");
@@ -172,7 +192,6 @@ export default function Home() {
     }
   };
   
-  // MODIFICATION: The entire conversational logic is updated for better context handling.
   const handleSendMessage = async (messageOverride?: string) => {
     const groq = new Groq({ apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY, dangerouslyAllowBrowser: true });
     if (chatHistory.length === 0) setIsSidebarOpen(true);
@@ -185,7 +204,6 @@ export default function Home() {
     setUserInput('');
     setIsLoading(true);
 
-    // 1. Get the general session memory for the current category.
     let generalContext = '';
     if (selectedCategory) {
         switch (selectedCategory) {
@@ -196,11 +214,8 @@ export default function Home() {
         }
     }
     
-    // 2. Search for specific context based on the user's actual message.
-    console.log(`Searching for conversational context based on: "${message}"`);
     const specificContextData = await getConversationalContext(message);
 
-    // 3. Build a more authoritative prompt.
     const generalContextForPrompt = generalContext
       ? `[GENERAL CONTEXT - A list of recent and popular titles for your reference]:\n${generalContext}\n\n`
       : "";
@@ -245,7 +260,7 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
     setChatHistory([]);
     setUserInput('');
     setAppState('questionnaire');
-    setIsOtherSelected(false);
+    setTempAnswer(null);
     setOtherAnswerText('');
     setSessionId(id => id + 1);
   };
@@ -266,12 +281,14 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
           <QuestionnairePage
             selectedCategory={selectedCategory}
             currentQuestionIndex={currentQuestionIndex}
-            isOtherSelected={isOtherSelected}
+            tempAnswer={tempAnswer}
             otherAnswerText={otherAnswerText}
-            setIsOtherSelected={setIsOtherSelected}
             setOtherAnswerText={setOtherAnswerText}
-            handleAnswer={handleAnswer}
-            handleOtherSubmit={handleOtherSubmit}
+            handleOptionSelect={handleOptionSelect}
+            handleBack={handleBack}
+            handleNext={handleNext}
+            handleStartOver={handleStartOver}
+            totalQuestions={5}
           />
         );
       case 'recommendations':
@@ -280,6 +297,7 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
             recommendations={recommendations}
             isLoading={isLoading}
             setAppState={setAppState}
+            selectedCategory={selectedCategory} // Pass the category down
           />
         );
       case 'chat':
@@ -306,8 +324,9 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
 
   return (
     <>
-      <main className={`transition-all duration-300 ${appState === 'chat' ? "h-screen w-screen" : "flex flex-col items-center justify-center min-h-screen p-4"} bg-gradient-to-br from-background to-gradient-accent/20 text-foreground ${modalContent ? 'blur-sm' : ''}`}>
-        <div className={appState === 'chat' ? "h-full w-full" : "w-full h-full flex items-center justify-center"}>
+      {/* MODIFICATION: The main tag now only provides the background. The child div handles all layout. */}
+      <main className={`transition-all duration-300 bg-gradient-to-br from-background to-gradient-accent/20 text-foreground ${modalContent ? 'blur-sm' : ''}`}>
+        <div className="w-full h-full">
           {renderContent()}
         </div>
       </main>
@@ -315,36 +334,3 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
     </>
   );
 }
-
-// --- Question Sets ---
-const questionSets = {
-  Game: [
-    { text: "What type of games do you usually play?", options: ["Action/Adventure", "RPGs", "Strategy", "Indie", "Sports/Racing", "Puzzle/Simulation"] },
-    { text: "What platforms do you play on?", options: ["PC", "PlayStation", "Xbox", "Nintendo Switch", "Mobile"] },
-    { text: "What are you looking for in your next game?", options: ["Challenging Gameplay", "Great Story", "Multiplayer Fun", "Beautiful Graphics", "Relaxing Experience"] },
-    { text: "Any specific genre you want to try?", options: ["Open World", "Turn-Based", "Real-Time Strategy", "Survival", "Co-op", "Competitive"] }
-  ],
-  Anime: [
-    { text: "What type of anime do you typically enjoy?", options: ["Action/Adventure", "Romance", "Comedy", "Drama", "Fantasy", "Sci-Fi"] },
-    { text: "Do you prefer longer series or shorter ones?", options: ["Short (12-26 episodes)", "Long (50+ episodes)", "Doesn't matter"] },
-    { text: "What appeals to you most in an anime?", options: ["Art Style", "Story/Plot", "Characters", "Soundtrack", "Animation Quality"] },
-    { text: "Any specific themes you're interested in?", options: ["School Life", "Mecha", "Slice of Life", "Psychological", "Supernatural", "Historical"] }
-  ],
-  Movie: [
-    { text: "What genres of movies do you enjoy?", options: ["Action", "Comedy", "Drama", "Horror", "Sci-Fi", "Romance"] },
-    { text: "Do you prefer recent releases or classics?", options: ["Recent (last 5 years)", "Modern Classics (last 20 years)", "All-Time Classics", "Mix of both"] },
-    { text: "What's most important to you in a movie?", options: ["Great Story", "Amazing Visuals", "Strong Characters", "Cinematography", "Soundtrack"] },
-    { text: "Any specific themes or settings you like?", options: ["Superheroes", "Historical", "Fantasy", "Realistic", "Space/Technology", "Mystery"] }
-  ],
-  "TV Series": [
-    { text: "What genres of TV series do you enjoy?", options: ["Action/Adventure", "Comedy", "Drama", "Crime/Mystery", "Fantasy", "Documentary"] },
-    { text: "How do you usually watch TV series?", options: ["Binge-watching", "Episode by episode", "Season by season"] },
-    { text: "What's most important to you in a TV series?", options: ["Engaging Plot", "Character Development", "Production Quality", "Pacing", "Realistic Dialogue"] },
-    { text: "Any specific themes or settings you prefer?", options: ["Contemporary", "Historical", "Fantasy", "Realistic", "Space/Technology", "Workplace"] }
-  ]
-};
-
-const initialQuestion = {
-  text: "What type of entertainment are you in the mood for?",
-  options: ["Game", "Anime", "Movie", "TV Series"]
-};
