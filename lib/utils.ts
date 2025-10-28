@@ -22,7 +22,7 @@ export function formatImageUrl(imageUrl: string | undefined): string | null {
       // Use the URL constructor to validate
       new URL(trimmedUrl);
       return trimmedUrl;
-    } catch (e) {
+    } catch {
       // If it's a malformed URL, fall through to the logic below
       console.warn(`Malformed URL detected: ${trimmedUrl}`);
     }

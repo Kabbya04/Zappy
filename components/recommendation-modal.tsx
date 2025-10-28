@@ -28,7 +28,7 @@ export const RecommendationModal = ({ recommendation, onClose }: RecommendationM
     console.log('RecommendationModal received recommendation:', recommendation);
     setImageError(false);
     setImageLoaded(false);
-  }, [recommendation?.imageUrl, recommendation?.title, recommendation?.category, recommendation?.explanation]);
+  }, [recommendation]);
 
   // If no recommendation is passed, the modal doesn't render
   if (!recommendation) return null;

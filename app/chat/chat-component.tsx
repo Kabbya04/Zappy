@@ -4,7 +4,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { ChatMessage } from '@/components/chat-message';
-import { Zap, ChevronLeft, ChevronRight, RefreshCw, Sun, Moon, Gamepad2, Bot, Film, Tv2 } from 'lucide-react';
+import { LucideIcon, Zap, ChevronLeft, ChevronRight, RefreshCw, Sun, Moon, Gamepad2, Bot, Film, Tv2 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { ChatInput } from './chat-input';
 
@@ -70,7 +70,7 @@ export default function ChatPage({
   };
 
   const Sidebar = () => {
-    const ICONS: Record<string, React.ComponentType<any>> = { 
+    const ICONS: Record<string, LucideIcon> = { 
       Game: Gamepad2, 
       Anime: Bot, 
       Movie: Film, 

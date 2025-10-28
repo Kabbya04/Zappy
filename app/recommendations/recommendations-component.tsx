@@ -3,7 +3,7 @@
 "use client";
 
 import { RecommendationCard } from '@/components/recommendation-card';
-import { Moon, Sun, Zap, MessageCircle, User, Mail, Globe, HelpCircle } from 'lucide-react';
+import { Moon, Sun, Zap, User, Mail, Globe, HelpCircle } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useState, useEffect } from 'react';
 
@@ -73,7 +73,7 @@ export default function RecommendationsPage({
 
       <main className="flex-grow flex flex-col items-center justify-center py-12 md:py-20">
         <h1 className="text-4xl md:text-5xl font-bold text-center mb-12">
-          The Critic's Corner: <span className="text-primary">{categoryTitle} Selections</span>
+          The Critic&apos;s Corner: <span className="text-primary">{categoryTitle} Selections</span>
         </h1>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 w-full max-w-6xl">
           {recommendations.map((rec, index) => (

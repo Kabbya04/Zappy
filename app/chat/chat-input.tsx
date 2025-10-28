@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+
 import { Send } from 'lucide-react';
 
 const predefinedPrompts = [

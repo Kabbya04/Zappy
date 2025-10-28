@@ -7,11 +7,11 @@ import Groq from 'groq-sdk';
 import { getLatestMedia, getTVDBImage, getConversationalContext } from '@/lib/tvdb';
 import { getLatestGames, getRawgImage } from '@/lib/rawg';
 import { formatImageUrl } from '@/lib/utils';
-import { initialQuestion, questionSets } from '@/lib/questions';
-import LandingPage from '@/app/landing/page';
-import QuestionnairePage from '@/app/questionnaire/page';
-import RecommendationsPage from '@/app/recommendations/page';
-import ChatPage from '@/app/chat/page';
+import { questionSets } from '@/lib/questions';
+import LandingPage from '@/app/landing/landing-component';
+import QuestionnairePage from '@/app/questionnaire/questionnaire-component';
+import RecommendationsPage from '@/app/recommendations/recommendations-component';
+import ChatPage from '@/app/chat/chat-component';
 import { RecommendationModal } from '@/components/recommendation-modal';
 
 // --- Interface Definitions ---
