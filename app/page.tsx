@@ -4,7 +4,6 @@
 
 import { useState, useEffect } from 'react';
 import Groq from 'groq-sdk';
-import { useTheme } from 'next-themes';
 import { getLatestMedia, getTVDBImage, getConversationalContext } from '@/lib/tvdb';
 import { getLatestGames, getRawgImage } from '@/lib/rawg';
 import { formatImageUrl } from '@/lib/utils';
@@ -297,7 +296,8 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
             recommendations={recommendations}
             isLoading={isLoading}
             setAppState={setAppState}
-            selectedCategory={selectedCategory} // Pass the category down
+            selectedCategory={selectedCategory}
+            handleStartOver={handleStartOver}
           />
         );
       case 'chat':
@@ -324,11 +324,8 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
 
   return (
     <>
-      {/* MODIFICATION: The main tag now only provides the background. The child div handles all layout. */}
-      <main className={`transition-all duration-300 bg-gradient-to-br from-background to-gradient-accent/20 text-foreground ${modalContent ? 'blur-sm' : ''}`}>
-        <div className="w-full h-full">
-          {renderContent()}
-        </div>
+      <main className={`transition-all duration-300 bg-gradient-to-br from-background to-gradient-accent/20 text-foreground ${modalContent ? 'blur-sm' : ''} ${appState === 'chat' ? 'w-screen h-screen' : 'min-h-screen'}`}>
+        {renderContent()}
       </main>
       <RecommendationModal recommendation={modalContent} onClose={closeModal} />
     </>
