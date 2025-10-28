@@ -1,65 +1,35 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { motion } from "framer-motion";
-import { LampContainer } from "@/components/lamp";
-import { initialQuestion, questionSets } from '@/lib/questions';
-import { RecommendationCard } from '@/components/recommendation-card';
-import { ChatMessage } from '@/components/chat-message';
-import { RecommendationModal } from '@/components/recommendation-modal';
 import Groq from 'groq-sdk';
 import { useTheme } from 'next-themes';
-import { Sun, Moon, Send, RefreshCw, Bot, Film, Gamepad2, CornerDownLeft, Zap, PanelLeftClose, PanelLeftOpen, Tv2 } from 'lucide-react';
+import { RefreshCw, Zap } from 'lucide-react';
 import { getLatestMedia, getTVDBImage, getConversationalContext } from '@/lib/tvdb';
 import { getLatestGames, getRawgImage } from '@/lib/rawg';
 import { formatImageUrl } from '@/lib/utils';
+import LandingPage from '@/app/landing/page';
+import QuestionnairePage from '@/app/questionnaire/page';
+import RecommendationsPage from '@/app/recommendations/page';
+import ChatPage from '@/app/chat/page';
+import { RecommendationModal } from '@/components/recommendation-modal';
 
 // --- Interface Definitions ---
-interface Recommendation { title: string; category: string; explanation: string; imageUrl?: string; }
-interface Message { role: 'user' | 'assistant'; content: string; }
+export interface Recommendation { 
+  title: string; 
+  category: string; 
+  explanation: string; 
+  imageUrl?: string; 
+}
+
+interface Message { 
+  role: 'user' | 'assistant'; 
+  content: string; 
+}
+
 type Category = 'Game' | 'Anime' | 'Movie' | 'TV Series';
 
 const cleanTitleForSearch = (title: string): string => {
   return title.replace(/\s*\(Season\s\d+\)/i, '').replace(/\s*:\s*(Part|Season)\s\d+/i, '').replace(/\s*-\s*Season\s\d+/i, '').trim();
-};
-
-const predefinedPrompts = [
-  "Tell me more about the first recommendation.",
-  "Why did you choose these for me?",
-  "Give me one more recommendation.",
-  "Which one is the most critically acclaimed?",
-];
-
-// --- ChatInput Component ---
-interface ChatInputProps {
-  userInput: string;
-  setUserInput: (value: string) => void;
-  isLoading: boolean;
-  handleSendMessage: () => void;
-  hasConversationStarted: boolean;
-  handlePredefinedPromptClick: (prompt: string) => void;
-}
-
-const ChatInput: React.FC<ChatInputProps> = ({ userInput, setUserInput, isLoading, handleSendMessage, hasConversationStarted, handlePredefinedPromptClick }) => {
-  return (
-    <div className="w-full">
-      {!hasConversationStarted && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-          {predefinedPrompts.map((prompt) => (
-            <button key={prompt} onClick={() => handlePredefinedPromptClick(prompt)} className="p-3 text-sm bg-card/50 border border-border rounded-lg text-left text-foreground/70 hover:bg-card/70 transition-colors">
-              {prompt}
-            </button>
-          ))}
-        </div>
-      )}
-      <div className="flex items-center bg-card rounded-2xl p-2.5 shadow-lg border border-border">
-         <input type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && !isLoading && handleSendMessage()} placeholder="Ask Zappy about your recommendations..." className="w-full bg-transparent text-foreground focus:outline-none px-3" disabled={isLoading} />
-         <button onClick={handleSendMessage} disabled={isLoading} className="p-2 w-10 h-10 flex items-center justify-center rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted transition-colors">
-          <Send size={20} />
-         </button>
-      </div>
-    </div>
-  );
 };
 
 // --- Main Page Component ---
@@ -77,7 +47,6 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [appState, setAppState] = useState<'questionnaire' | 'recommendations' | 'chat'>('questionnaire');
   const [modalContent, setModalContent] = useState<Recommendation | null>(null);
-  const chatContainerRef = useRef<HTMLDivElement>(null);
   const { theme, setTheme } = useTheme();
   
   const [latestMoviesContext, setLatestMoviesContext] = useState('');
@@ -87,9 +56,6 @@ export default function Home() {
   const [isContextLoading, setIsContextLoading] = useState(true);
   const [sessionId, setSessionId] = useState(0);
 
-  const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => { setIsMounted(true); }, []);
-  
   useEffect(() => {
     const fetchInitialContext = async () => {
       setIsContextLoading(true);
@@ -114,10 +80,6 @@ export default function Home() {
     };
     fetchInitialContext();
   }, [sessionId]);
-
-  useEffect(() => {
-    if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-  }, [chatHistory]);
 
   const handleAnswer = (answer: string) => {
     if (!selectedCategory) {
@@ -271,7 +233,6 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
     }
   };
 
-  const handlePredefinedPromptClick = (prompt: string) => { handleSendMessage(prompt); };
   const openModal = (recommendation: Recommendation) => { setModalContent(recommendation); };
   const closeModal = () => { setModalContent(null); };
   
@@ -295,237 +256,95 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
   };
   
   if (showLanding) {
-      if (isContextLoading) {
-          return (
-              <div className="w-screen h-screen flex flex-col items-center justify-center bg-background text-foreground">
-                  <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-primary"></div>
-                  <p className="mt-4 text-lg text-muted-foreground">Warming up Zappy...</p>
-              </div>
-          );
-      }
-      return (
-        <LampContainer>
-            <motion.h1
-                initial={{ opacity: 0.5, y: 100 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{
-                    delay: 0.3,
-                    duration: 0.8,
-                    ease: "easeInOut",
-                }}
-                className="mt-8 bg-gradient-to-br from-foreground to-secondary py-4 bg-clip-text text-center text-5xl font-bold tracking-tight text-transparent md:text-7xl"
-            >
-                Zappy ⚡
-            </motion.h1>
-            <motion.p
-                initial={{ opacity: 0, y: 120 }}
-                whileInView={{ opacity: 1, y: 20 }}
-                transition={{
-                    delay: 0.4,
-                    duration: 0.8,
-                    ease: "easeInOut",
-                }}
-                className="mt-4 max-w-2xl text-center text-base md:text-lg text-foreground/70"
-            >
-                An AI-powered recommender that uses LLMs to suggest games, anime, and movies based on your tastes. Through natural conversation, it delivers smart, personalized picks—helping you discover your next favorite game, binge-worthy anime, or movie that perfectly matches your mood.
-            </motion.p>
-            <motion.div
-                initial={{ opacity: 0, y: 140 }}
-                whileInView={{ opacity: 1, y: 40 }}
-                transition={{
-                    delay: 0.5,
-                    duration: 0.8,
-                    ease: "easeInOut",
-                }}
-                className="mt-8 flex items-center space-x-4"
-            >
-                <button
-                    onClick={() => setShowLanding(false)}
-                    className="bg-primary text-primary-foreground font-bold py-3 px-8 rounded-full hover:bg-primary/90 transition-transform transform hover:scale-105"
-                >
-                    Get Started
-                </button>
-                 <button 
-                    onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} 
-                    className="p-3 rounded-full text-foreground/60 hover:bg-card/50"
-                 >
-                    {isMounted && (theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />)}
-                </button>
-            </motion.div>
-        </LampContainer>
-      );
+    return <LandingPage setShowLanding={setShowLanding} isContextLoading={isContextLoading} />;
   }
 
-  // --- Main App Components ---
-  const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center">
-        <div className="absolute top-4 right-4 flex items-center gap-4">
-          <button onClick={handleStartOver} className="p-2 rounded-lg text-muted-foreground/60 hover:bg-card">
-            <RefreshCw size={18} />
-          </button>
-          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-lg text-muted-foreground/60 hover:bg-card">
-            {isMounted && (theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />)}
-          </button>
-        </div>
-        {children}
-      </div>
-    );
-  };
-  
-  const Sidebar: React.FC = () => {
-    const ICONS = { Game: Gamepad2, Anime: Bot, Movie: Film, 'TV Series': Tv2 };
-    const Icon = selectedCategory ? ICONS[selectedCategory] : Bot;
-    return (
-      <div className={`transition-all duration-300 ease-in-out bg-card border-r border-border flex flex-col flex-shrink-0 ${isSidebarOpen ? 'w-64 p-4' : 'w-0 md:w-20 p-0 md:p-2 items-center'}`}>
-        <div className={`flex items-center mb-4 pb-4 border-b border-border ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
-          <button onClick={handleGoToLanding} className={`flex items-center gap-2 ${!isSidebarOpen && 'hidden'}`}>
-            <Zap className="text-secondary" />
-            <span className="text-xl font-bold">Zappy</span>
-          </button>
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 rounded-lg text-muted-foreground/60 hover:bg-background">
-            {isSidebarOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
-          </button>
-        </div>
-        <div className="flex-grow overflow-y-auto overflow-x-hidden">
-          <div className={`text-sm font-semibold text-muted-foreground mb-2 ${isSidebarOpen ? 'block' : 'hidden'}`}>Recommendations</div>
-          <ul className="flex flex-col gap-2">
-            {recommendations.map((rec, index) => (
-              <li key={index}>
-                <button onClick={() => openModal(rec)} className={`w-full text-left p-3 rounded-lg text-card-foreground/80 hover:bg-background transition-colors flex items-center gap-3 ${!isSidebarOpen && 'justify-center'}`}>
-                  <Icon className="text-primary flex-shrink-0" size={20} />
-                  <span className={`truncate ${isSidebarOpen ? 'inline' : 'hidden'}`}>{rec.title}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="mt-auto pt-4 border-t border-border flex flex-col gap-2">
-          <button onClick={handleStartOver} className={`w-full p-3 rounded-lg text-card-foreground/80 hover:bg-background transition-colors flex items-center gap-3 ${isSidebarOpen && 'justify-center'}`}>
-            <RefreshCw size={18} className="flex-shrink-0" />
-            <span className={`font-medium ${isSidebarOpen ? 'inline' : 'hidden'}`}>Start Over</span>
-          </button>
-          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className={`w-full p-3 rounded-lg text-card-foreground/80 hover:bg-background transition-colors flex items-center gap-3 ${isSidebarOpen && 'justify-center'}`}>
-            {isMounted && (theme === 'dark' ? <Sun size={18} className="flex-shrink-0" /> : <Moon size={18} className="flex-shrink-0" />)}
-            <span className={`font-medium ${isSidebarOpen ? 'inline' : 'hidden'}`}>{isMounted && (theme === 'dark' ? 'Light Theme' : 'Dark Theme')}</span>
-          </button>
-        </div>
-      </div>
-    );
-  };
-
   const renderContent = () => {
-    if (appState === 'questionnaire') {
-      const currentQ = !selectedCategory ? initialQuestion : questionSets[selectedCategory][currentQuestionIndex];
-      const progressText = selectedCategory ? `Question ${currentQuestionIndex + 2} of 5` : "Question 1 of 5";
-      const optionsLayout = !selectedCategory ? "flex flex-col gap-4" : "grid grid-cols-1 md:grid-cols-2 gap-4";
-      return (
-        <PageWrapper>
-          <div className="w-full max-w-2xl mx-auto">
-            <div className="bg-card text-card-foreground p-8 rounded-2xl shadow-2xl border border-border">
-              <h2 className="text-2xl font-bold text-center mb-6">{currentQ.text}</h2>
-              {isOtherSelected ? (
-                <div className="flex flex-col gap-4">
-                  <input type="text" value={otherAnswerText} onChange={(e) => setOtherAnswerText(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleOtherSubmit()} placeholder="Type your answer here..." className="w-full p-4 rounded-xl bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring" autoFocus />
-                  <div className="flex gap-3">
-                    <button onClick={handleOtherSubmit} className="flex-grow p-4 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors">Submit</button>
-                    <button onClick={() => setIsOtherSelected(false)} className="p-4 rounded-xl bg-muted text-foreground hover:bg-muted/70 transition-colors" title="Go back to options"><CornerDownLeft size={24} /></button>
-                  </div>
-                </div>
-              ) : (
-                <div className={optionsLayout}>
-                  {currentQ.options.map((option) => (
-                    <button key={option} onClick={() => handleAnswer(option)} className="p-4 rounded-xl text-lg bg-background border border-border text-foreground/80 hover:bg-primary hover:text-primary-foreground transition-colors duration-200">{option}</button>
-                  ))}
-                  {selectedCategory && (
-                    <button key="other" onClick={() => setIsOtherSelected(true)} className="p-4 rounded-xl text-lg bg-background border border-border text-foreground/80 hover:bg-primary hover:text-primary-foreground transition-colors duration-200">Other</button>
-                  )}
-                </div>
-              )}
-              <div className="mt-6 text-center text-sm text-muted-foreground">{progressText}</div>
-            </div>
-          </div>
-        </PageWrapper>
-      );
-    }
-    if (isLoading && recommendations.length === 0) {
-      return (
-        <PageWrapper>
-          <div className="text-center">
-            <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-primary mx-auto"></div>
-            <p className="mt-4 text-lg text-muted-foreground">Zappy is thinking...</p>
-          </div>
-        </PageWrapper>
-      );
-    }
-    if (appState === 'recommendations' && recommendations.length > 0) {
+    switch (appState) {
+      case 'questionnaire':
         return (
-          <PageWrapper>
-            <div className="text-center">
-                <h2 className="text-3xl font-bold text-center mb-6">{`Here are your recommendations!`}</h2>
-                <div className="flex flex-col items-center gap-6 max-w-3xl mx-auto">
-                    {recommendations.map((rec, index) => <RecommendationCard key={index} {...rec} />)}
-                </div>
-                <div className="text-center mt-8">
-                    <button onClick={() => setAppState('chat')} className="bg-primary text-primary-foreground font-bold py-3 px-8 rounded-full hover:bg-primary/90 transition-transform transform hover:scale-105">Discuss with Zappy</button>
-                </div>
-            </div>
-          </PageWrapper>
+          <QuestionnairePage
+            selectedCategory={selectedCategory}
+            currentQuestionIndex={currentQuestionIndex}
+            isOtherSelected={isOtherSelected}
+            otherAnswerText={otherAnswerText}
+            setIsOtherSelected={setIsOtherSelected}
+            setOtherAnswerText={setOtherAnswerText}
+            handleAnswer={handleAnswer}
+            handleOtherSubmit={handleOtherSubmit}
+          />
         );
+      case 'recommendations':
+        return (
+          <RecommendationsPage
+            recommendations={recommendations}
+            isLoading={isLoading}
+            setAppState={setAppState}
+          />
+        );
+      case 'chat':
+        return (
+          <ChatPage
+            chatHistory={chatHistory}
+            userInput={userInput}
+            setUserInput={setUserInput}
+            isLoading={isLoading}
+            handleSendMessage={handleSendMessage}
+            selectedCategory={selectedCategory}
+            recommendations={recommendations}
+            openModal={openModal}
+            isSidebarOpen={isSidebarOpen}
+            setIsSidebarOpen={setIsSidebarOpen}
+            handleStartOver={handleStartOver}
+            handleGoToLanding={handleGoToLanding}
+          />
+        );
+      default:
+        return null;
     }
-    if (appState === 'chat') {
-      const hasConversationStarted = chatHistory.length > 0;
-      return (
-        <div className="flex w-full h-full">
-          <Sidebar />
-          <div className="flex flex-col flex-grow h-full bg-transparent">
-            {hasConversationStarted ? (
-              <div className="w-full max-w-2xl mx-auto flex flex-col h-full">
-                <div ref={chatContainerRef} className="flex-grow pt-6 space-y-6 overflow-y-auto px-2">
-                  {chatHistory.map((msg, index) => <ChatMessage key={index} {...msg} />)}
-                  {isLoading && chatHistory.length > 0 && (
-                    <div className="flex items-start gap-4">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center font-bold text-primary-foreground text-lg flex-shrink-0">Z</div>
-                      <div className="p-4 rounded-2xl bg-card">
-                        <div className="flex items-center space-x-2">
-                          <div className="w-2 h-2 bg-muted rounded-full animate-pulse"></div>
-                          <div className="w-2 h-2 bg-muted rounded-full animate-pulse delay-75"></div>
-                          <div className="w-2 h-2 bg-muted rounded-full animate-pulse delay-150"></div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="pt-4 pb-6 bg-transparent border-t border-border">
-                  <ChatInput userInput={userInput} setUserInput={setUserInput} isLoading={isLoading} handleSendMessage={handleSendMessage} hasConversationStarted={hasConversationStarted} handlePredefinedPromptClick={handlePredefinedPromptClick} />
-                </div>
-              </div>
-            ) : (
-              <div className="h-full w-full flex justify-center items-center p-4">
-                <div className="flex flex-col items-center gap-8 text-center w-full max-w-2xl mx-auto">
-                  <div className="flex flex-col items-center gap-4">
-                    <Zap className="w-12 h-12 text-secondary" />
-                    <h1 className="text-4xl md:text-5xl font-serif">{selectedCategory ? `Ready to discuss ${selectedCategory}s?` : "Let's find something great!"}</h1>
-                  </div>
-                  <ChatInput userInput={userInput} setUserInput={setUserInput} isLoading={isLoading} handleSendMessage={handleSendMessage} hasConversationStarted={hasConversationStarted} handlePredefinedPromptClick={handlePredefinedPromptClick} />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      );
-    }
-    return null; 
   };
 
   return (
     <>
       <main className={`transition-all duration-300 ${appState === 'chat' ? "h-screen w-screen" : "flex flex-col items-center justify-center min-h-screen p-4"} bg-gradient-to-br from-background to-gradient-accent/20 text-foreground ${modalContent ? 'blur-sm' : ''}`}>
-          <div className={appState === 'chat' ? "h-full w-full" : "w-full h-full flex items-center justify-center"}>
-               {renderContent()}
-          </div>
+        <div className={appState === 'chat' ? "h-full w-full" : "w-full h-full flex items-center justify-center"}>
+          {renderContent()}
+        </div>
       </main>
       <RecommendationModal recommendation={modalContent} onClose={closeModal} />
     </>
   );
 }
+
+// --- Question Sets ---
+const questionSets = {
+  Game: [
+    { text: "What type of games do you usually play?", options: ["Action/Adventure", "RPGs", "Strategy", "Indie", "Sports/Racing", "Puzzle/Simulation"] },
+    { text: "What platforms do you play on?", options: ["PC", "PlayStation", "Xbox", "Nintendo Switch", "Mobile"] },
+    { text: "What are you looking for in your next game?", options: ["Challenging Gameplay", "Great Story", "Multiplayer Fun", "Beautiful Graphics", "Relaxing Experience"] },
+    { text: "Any specific genre you want to try?", options: ["Open World", "Turn-Based", "Real-Time Strategy", "Survival", "Co-op", "Competitive"] }
+  ],
+  Anime: [
+    { text: "What type of anime do you typically enjoy?", options: ["Action/Adventure", "Romance", "Comedy", "Drama", "Fantasy", "Sci-Fi"] },
+    { text: "Do you prefer longer series or shorter ones?", options: ["Short (12-26 episodes)", "Long (50+ episodes)", "Doesn't matter"] },
+    { text: "What appeals to you most in an anime?", options: ["Art Style", "Story/Plot", "Characters", "Soundtrack", "Animation Quality"] },
+    { text: "Any specific themes you're interested in?", options: ["School Life", "Mecha", "Slice of Life", "Psychological", "Supernatural", "Historical"] }
+  ],
+  Movie: [
+    { text: "What genres of movies do you enjoy?", options: ["Action", "Comedy", "Drama", "Horror", "Sci-Fi", "Romance"] },
+    { text: "Do you prefer recent releases or classics?", options: ["Recent (last 5 years)", "Modern Classics (last 20 years)", "All-Time Classics", "Mix of both"] },
+    { text: "What's most important to you in a movie?", options: ["Great Story", "Amazing Visuals", "Strong Characters", "Cinematography", "Soundtrack"] },
+    { text: "Any specific themes or settings you like?", options: ["Superheroes", "Historical", "Fantasy", "Realistic", "Space/Technology", "Mystery"] }
+  ],
+  "TV Series": [
+    { text: "What genres of TV series do you enjoy?", options: ["Action/Adventure", "Comedy", "Drama", "Crime/Mystery", "Fantasy", "Documentary"] },
+    { text: "How do you usually watch TV series?", options: ["Binge-watching", "Episode by episode", "Season by season"] },
+    { text: "What's most important to you in a TV series?", options: ["Engaging Plot", "Character Development", "Production Quality", "Pacing", "Realistic Dialogue"] },
+    { text: "Any specific themes or settings you prefer?", options: ["Contemporary", "Historical", "Fantasy", "Realistic", "Space/Technology", "Workplace"] }
+  ]
+};
+
+const initialQuestion = {
+  text: "What type of entertainment are you in the mood for?",
+  options: ["Game", "Anime", "Movie", "TV Series"]
+};

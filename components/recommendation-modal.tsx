@@ -3,6 +3,7 @@
 
 import { X, Film } from 'lucide-react';
 import Image from 'next/image';
+import { useState, useEffect } from 'react';
 
 // Interface for the recommendation object
 interface Recommendation {
@@ -19,8 +20,23 @@ interface RecommendationModalProps {
 }
 
 export const RecommendationModal = ({ recommendation, onClose }: RecommendationModalProps) => {
+  const [imageError, setImageError] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  
+  // Reset error state when recommendation changes
+  useEffect(() => {
+    console.log('RecommendationModal received recommendation:', recommendation);
+    setImageError(false);
+    setImageLoaded(false);
+  }, [recommendation?.imageUrl, recommendation?.title, recommendation?.category, recommendation?.explanation]);
+
   // If no recommendation is passed, the modal doesn't render
   if (!recommendation) return null;
+
+  // Check if imageUrl is valid
+  const isValidImageUrl = recommendation.imageUrl && 
+    typeof recommendation.imageUrl === 'string' && 
+    recommendation.imageUrl.length > 0;
 
   return (
     // The main modal container with the backdrop
@@ -38,14 +54,30 @@ export const RecommendationModal = ({ recommendation, onClose }: RecommendationM
           
           {/* Image Container */}
           <div className="relative w-full md:w-56 h-72 md:h-auto flex-shrink-0">
-            {recommendation.imageUrl ? (
-              <Image 
-                className="object-cover rounded-t-lg md:rounded-none md:rounded-l-lg" 
-                src={recommendation.imageUrl} 
-                alt={`Thumbnail for ${recommendation.title}`} 
-                fill
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              />
+            {isValidImageUrl && !imageError ? (
+              <>
+                <Image 
+                  className={`object-cover rounded-t-lg md:rounded-none md:rounded-l-lg ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  src={recommendation.imageUrl as string} 
+                  alt={`Thumbnail for ${recommendation.title}`} 
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  onLoadingComplete={() => {
+                    console.log(`Modal image loaded successfully: ${recommendation.imageUrl}`);
+                    setImageLoaded(true);
+                  }}
+                  onError={(e) => {
+                    console.log(`Failed to load modal image: ${recommendation.imageUrl}`);
+                    console.log('Error details:', e);
+                    setImageError(true);
+                  }}
+                />
+                {!imageLoaded && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-primary/50"></div>
+                  </div>
+                )}
+              </>
             ) : (
               // Fallback placeholder if no image is found
               <div className="flex items-center justify-center w-full h-full bg-muted/50 rounded-t-lg md:rounded-none md:rounded-l-lg">

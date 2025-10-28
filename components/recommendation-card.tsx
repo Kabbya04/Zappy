@@ -14,11 +14,17 @@ interface RecommendationCardProps {
 
 export const RecommendationCard = ({ title, category, explanation, imageUrl }: RecommendationCardProps) => {
   const [imageError, setImageError] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
   
   // Reset error state when imageUrl changes
   useEffect(() => {
+    console.log('RecommendationCard received props:', { title, category, explanation, imageUrl });
     setImageError(false);
-  }, [imageUrl]);
+    setImageLoaded(false);
+  }, [imageUrl, title, category, explanation]);
+
+  // Check if imageUrl is valid
+  const isValidImageUrl = imageUrl && typeof imageUrl === 'string' && imageUrl.length > 0;
 
   return (
     // The main container, adapting the reference style to our theme
@@ -26,22 +32,30 @@ export const RecommendationCard = ({ title, category, explanation, imageUrl }: R
       
       {/* Image Container */}
       <div className="relative w-full md:w-48 h-64 md:h-auto flex-shrink-0">
-        {imageUrl && !imageError ? (
-          <Image 
-            className="object-cover rounded-t-lg md:rounded-none md:rounded-l-lg" 
-            src={imageUrl} 
-            alt={`Thumbnail for ${title}`} 
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            onError={(e) => {
-              console.log(`Failed to load image: ${imageUrl}`);
-              console.log('Error details:', e);
-              setImageError(true);
-            }}
-            onLoad={() => {
-              console.log(`Successfully loaded image: ${imageUrl}`);
-            }}
-          />
+        {isValidImageUrl && !imageError ? (
+          <>
+            <Image 
+              className={`object-cover rounded-t-lg md:rounded-none md:rounded-l-lg ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+              src={imageUrl} 
+              alt={`Thumbnail for ${title}`} 
+              fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              onLoadingComplete={() => {
+                console.log(`Image loaded successfully: ${imageUrl}`);
+                setImageLoaded(true);
+              }}
+              onError={(e) => {
+                console.log(`Failed to load image: ${imageUrl}`);
+                console.log('Error details:', e);
+                setImageError(true);
+              }}
+            />
+            {!imageLoaded && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-8 h-8 border-4 border-dashed rounded-full animate-spin border-primary/50"></div>
+              </div>
+            )}
+          </>
         ) : (
           // Fallback placeholder if no image is found
           <div className="flex items-center justify-center w-full h-full bg-muted/50 rounded-t-lg md:rounded-none md:rounded-l-lg">

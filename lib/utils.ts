@@ -50,7 +50,7 @@ export function formatImageUrl(imageUrl: string | undefined): string | null {
     return null;
   }
   
-  // If the URL is not absolute and doesn't match known relative patterns, it's likely invalid.
-  console.warn(`Unrecognized image URL format: ${trimmedUrl}`);
+  // If we get here and it's not an empty string, log it for debugging
+  console.warn(`Unexpected image URL format: ${trimmedUrl}`);
   return null;
 }
