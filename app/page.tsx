@@ -57,6 +57,8 @@ export default function Home() {
   const [isContextLoading, setIsContextLoading] = useState(true);
   const [sessionId, setSessionId] = useState(0);
 
+  const [showGuestModal, setShowGuestModal] = useState(false);
+
   useEffect(() => {
     const fetchInitialContext = async () => {
       setIsContextLoading(true);
@@ -102,16 +104,17 @@ export default function Home() {
       setSelectedCategory(answerToSubmit as Category);
       setAnswers([answerToSubmit]);
     } else {
-      const newAnswers = [...answers, answerToSubmit];
-      setAnswers(newAnswers);
-      const questionSet = questionSets[selectedCategory];
-      if (currentQuestionIndex < questionSet.length - 1) {
-        setCurrentQuestionIndex(currentQuestionIndex + 1);
-      } else {
-        setAppState('recommendations');
-        getRecommendations(newAnswers);
+        const newAnswers = [...answers, answerToSubmit];
+        setAnswers(newAnswers);
+        const questionSet = questionSets[selectedCategory];
+        if (currentQuestionIndex < questionSet.length - 1) {
+          setCurrentQuestionIndex(currentQuestionIndex + 1);
+        } else {
+          // Skip guest modal and go directly to recommendations
+          setAppState('recommendations');
+          getRecommendations([...answers, answerToSubmit]);
+        }
       }
-    }
     setTempAnswer(null);
     setOtherAnswerText('');
   };
@@ -264,10 +267,7 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
     setSessionId(id => id + 1);
   };
 
-  const handleGoToLanding = () => {
-    handleStartOver();
-    setShowLanding(true);
-  };
+
   
   if (showLanding) {
     return <LandingPage setShowLanding={setShowLanding} isContextLoading={isContextLoading} />;
@@ -297,7 +297,6 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
             isLoading={isLoading}
             setAppState={setAppState}
             selectedCategory={selectedCategory}
-            handleStartOver={handleStartOver}
           />
         );
       case 'chat':
@@ -314,7 +313,6 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
             isSidebarOpen={isSidebarOpen}
             setIsSidebarOpen={setIsSidebarOpen}
             handleStartOver={handleStartOver}
-            handleGoToLanding={handleGoToLanding}
           />
         );
       default:
@@ -324,10 +322,22 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
 
   return (
     <>
-      <main className={`transition-all duration-300 bg-gradient-to-br from-background to-gradient-accent/20 text-foreground ${modalContent ? 'blur-sm' : ''} ${appState === 'chat' ? 'w-screen h-screen' : 'min-h-screen'}`}>
+      <main className={`transition-all duration-300 bg-gradient-to-br from-background to-gradient-accent/20 text-foreground ${modalContent || showGuestModal ? 'blur-sm' : ''} ${appState === 'chat' ? 'w-screen h-screen' : 'min-h-screen'}`}>
         {renderContent()}
       </main>
       <RecommendationModal recommendation={modalContent} onClose={closeModal} />
+      {showGuestModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-background p-8 rounded-lg shadow-lg text-center">
+            <h2 className="text-2xl font-bold mb-4">Join Zappy!</h2>
+            <p className="text-muted-foreground mb-6">Sign in or create an account to save your preferences and get personalized recommendations.</p>
+            <div className="flex justify-center gap-4">
+              <button onClick={() => window.location.href = '/auth'} className="bg-primary text-primary-foreground font-semibold py-2 px-4 rounded-lg hover:bg-primary/90 transition-colors">Sign in / Sign up</button>
+              <button onClick={() => { setShowGuestModal(false); setAppState('recommendations'); getRecommendations(answers); }} className="bg-secondary text-secondary-foreground font-semibold py-2 px-4 rounded-lg hover:bg-secondary/90 transition-colors">Continue as guest</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

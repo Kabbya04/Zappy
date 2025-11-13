@@ -32,7 +32,6 @@ interface ChatPageProps {
   isSidebarOpen: boolean;
   setIsSidebarOpen: (value: boolean) => void;
   handleStartOver: () => void;
-  handleGoToLanding: () => void;
 }
 
 export default function ChatPage({
@@ -46,8 +45,7 @@ export default function ChatPage({
   openModal,
   isSidebarOpen,
   setIsSidebarOpen,
-  handleStartOver,
-  handleGoToLanding
+  handleStartOver
 }: ChatPageProps) {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const { theme, setTheme } = useTheme();
@@ -82,7 +80,7 @@ export default function ChatPage({
       <div className={`transition-all duration-300 ease-in-out bg-card border-r border-border flex flex-col flex-shrink-0 ${isSidebarOpen ? 'w-64 p-4' : 'w-0 md:w-20 p-0 md:p-2 items-center'}`}>
         <div className={`flex items-center mb-4 pb-4 border-b border-border ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
           {/* MODIFICATION: This button is now completely hidden when the sidebar is closed */}
-          <button onClick={handleGoToLanding} className={`flex items-center gap-2 ${isSidebarOpen ? 'flex' : 'hidden'}`}>
+          <button onClick={() => window.location.href = '/'} className={`flex items-center gap-2 ${isSidebarOpen ? 'flex' : 'hidden'}`}>
             <Zap className="text-secondary" />
             <span className="text-xl font-bold">Zappy</span>
           </button>

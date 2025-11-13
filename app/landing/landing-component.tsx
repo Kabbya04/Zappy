@@ -1,13 +1,21 @@
-// app/landing/page.tsx
-
 "use client";
 
 import { useState, useEffect } from 'react';
 import { motion } from "framer-motion";
 import { LampContainer } from "@/components/lamp";
 import { useTheme } from 'next-themes';
-// MODIFICATION: Import ChevronsDown instead of ChevronDown
-import { Sun, Moon, Zap, Gamepad2, Bot, Film, Tv2, ChevronDown, ChevronsDown } from 'lucide-react';
+import { Sun, Moon, Zap, Gamepad2, Bot, Film, Tv2, ChevronDown, ChevronsDown, User } from 'lucide-react';
+import { useAuth } from '@/lib/hooks/use-auth';
+import { User as SupabaseUser } from '@supabase/supabase-js';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+
 
 export default function LandingPage({ 
   setShowLanding,
@@ -19,13 +27,30 @@ export default function LandingPage({
   const { theme, setTheme } = useTheme();
   const [isMounted, setIsMounted] = useState(false);
   const [openAccordion, setOpenAccordion] = useState<number | null>(0);
+  const { getUser, signOut } = useAuth();
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    const fetchUser = async () => {
+      try {
+        const loggedInUser = await getUser();
+        setUser(loggedInUser);
+      } catch (error) {
+        console.error("Error fetching user:", error);
+      }
+    };
+    fetchUser();
+  }, [getUser]);
 
   const handleAccordion = (index: number) => {
     setOpenAccordion(openAccordion === index ? null : index);
+  };
+
+  const handleGuestMode = () => {
+    setIsGuest(true);
+    setShowLanding(false);
   };
 
   const featureCards = [
@@ -81,14 +106,13 @@ export default function LandingPage({
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border/50">
         <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.location.href = '/'}>
               <Zap className="text-primary" />
               <span className="text-xl font-bold">Zappy</span>
             </div>
             <div className="flex items-center gap-6">
               <nav className="hidden md:flex gap-6 text-sm font-medium text-muted-foreground">
                 <a href="#" className="hover:text-primary transition-colors">About</a>
-                <a href="#" className="hover:text-primary transition-colors">Profile</a>
               </nav>
               <button
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -97,6 +121,27 @@ export default function LandingPage({
               >
                 {isMounted && (theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />)}
               </button>
+              {user || isGuest ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="p-2 rounded-full text-foreground/60 hover:bg-card/50">
+                      <User size={20} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuLabel>{isGuest ? 'Guest' : user?.email}</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {!isGuest && <DropdownMenuItem onClick={signOut}>Sign out</DropdownMenuItem>}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <button
+                  onClick={() => window.location.href = '/auth'}
+                  className="hidden sm:block bg-secondary text-secondary-foreground font-semibold py-2 px-4 rounded-lg hover:bg-secondary/90 transition-colors"
+                >
+                  Sign in / Sign up
+                </button>
+              )}
               <button
                 onClick={() => setShowLanding(false)}
                 className="hidden sm:block bg-primary text-primary-foreground font-semibold py-2 px-4 rounded-lg hover:bg-primary/90 transition-colors"
@@ -128,24 +173,32 @@ export default function LandingPage({
                 Your intelligent assistant for discovering and discussing your favorite games, anime, movies, and TV series.
             </motion.p>
             
-            {/* MODIFICATION: Wrapper div now centers both button and scroll hint */}
             <motion.div
                 initial={{ opacity: 0, y: 140 }}
                 whileInView={{ opacity: 1, y: 40 }}
                 transition={{ delay: 0.5, duration: 0.8, ease: "easeInOut" }}
-                className="flex flex-col items-center" // Center children
+                className="flex flex-col items-center"
             >
-                <button
-                    onClick={() => setShowLanding(false)}
-                    className="bg-primary text-primary-foreground font-bold py-3 px-8 rounded-full hover:bg-primary/90 transition-transform transform hover:scale-105"
-                >
-                    Start Exploring
-                </button>
+                <div className="flex gap-4">
+                  <button
+                      onClick={() => setShowLanding(false)}
+                      className="bg-primary text-primary-foreground font-bold py-3 px-8 rounded-full hover:bg-primary/90 transition-transform transform hover:scale-105"
+                  >
+                      Start Exploring
+                  </button>
+                  {!user && (
+                    <button
+                        onClick={handleGuestMode}
+                        className="bg-secondary text-secondary-foreground font-bold py-3 px-8 rounded-full hover:bg-secondary/90 transition-transform transform hover:scale-105"
+                    >
+                        Continue as Guest
+                    </button>
+                  )}
+                </div>
 
-                {/* MODIFICATION: Scroll hint moved here, below the button */}
                 <motion.a
                   href="#guide"
-                  className="mt-20 cursor-pointer" // Removed absolute positioning, added margin-top
+                  className="mt-20 cursor-pointer"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 1.5, duration: 1.5 }}
@@ -159,7 +212,6 @@ export default function LandingPage({
                       ease: "easeInOut",
                     }}
                   >
-                    {/* MODIFICATION: Icon changed to ChevronsDown */}
                     <ChevronsDown className="w-8 h-8 text-muted-foreground" />
                   </motion.div>
                 </motion.a>

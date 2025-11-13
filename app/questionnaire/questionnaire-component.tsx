@@ -52,7 +52,7 @@ export default function QuestionnairePage({
     <div className="flex flex-col w-full max-w-4xl min-h-screen mx-auto p-4 md:p-8 text-foreground">
       {/* Header */}
       <header className="flex items-center justify-between w-full mb-8">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={handleStartOver}>
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.location.href = '/'}>
           <Zap className="text-primary" />
           <span className="text-2xl font-bold">Zappy</span>
         </div>

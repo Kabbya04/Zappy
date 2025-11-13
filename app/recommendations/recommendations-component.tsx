@@ -19,8 +19,6 @@ interface RecommendationsPageProps {
   isLoading: boolean;
   setAppState: (state: 'questionnaire' | 'recommendations' | 'chat') => void;
   selectedCategory: string | null;
-  // MODIFICATION: Add the handleStartOver prop to the interface definition
-  handleStartOver: () => void; 
 }
 
 export default function RecommendationsPage({
@@ -28,7 +26,6 @@ export default function RecommendationsPage({
   isLoading,
   setAppState,
   selectedCategory,
-  handleStartOver,
 }: RecommendationsPageProps) {
   const { theme, setTheme } = useTheme();
   const [isMounted, setIsMounted] = useState(false);
@@ -53,7 +50,7 @@ export default function RecommendationsPage({
   return (
     <div className="w-full min-h-screen flex flex-col bg-gradient-to-br from-background to-gradient-accent/20 px-4 sm:px-6 lg:px-8">
       <header className="flex items-center justify-between w-full py-6">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={handleStartOver}>
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.location.href = '/'}>
           <Zap className="text-primary" />
           <span className="text-2xl font-bold">Zappy</span>
         </div>
