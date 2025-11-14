@@ -6,18 +6,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Zap } from "lucide-react";
+import { Zap, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/lib/hooks/use-auth";
-
 
 export default function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const { signIn } = useAuth();
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
   return (
     <div className="w-full lg:grid lg:min-h-screen lg:grid-cols-2">
       <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -81,14 +86,28 @@ export default function AuthPage() {
                     Forgot password?
                   </Link>
                 </div>
-                <Input 
-                  id="password" 
-                  type="password" 
-                  className="py-5 px-4" 
-                  required 
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
+                <div className="relative">
+                  <Input 
+                    id="password" 
+                    type={showPassword ? "text" : "password"} 
+                    className="py-5 px-4 pr-12" 
+                    required 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={togglePasswordVisibility}
+                    className="absolute inset-y-0 right-0 flex items-center pr-4 text-muted-foreground hover:text-foreground"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </div>
               
               <div className="flex items-center justify-between">
