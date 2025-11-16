@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getOAuthRedirectUrl } from '@/lib/config/environment'
-import { getSiteUrl } from '@/lib/config/site'
+
   
 export function useAuth() {
   const router = useRouter()
@@ -51,7 +51,7 @@ export function useAuth() {
 
   const resetPassword = async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${getSiteUrl()}/auth/reset-password`,
+      redirectTo: `${getOAuthRedirectUrl()}/auth/reset-password`,
     })
 
     if (error) throw error
