@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { debugGetSiteUrl } from '@/lib/utils/debug-url'
 import { getSiteUrl } from '@/lib/utils/site-url'
 
 export function useAuth() {
@@ -70,10 +71,13 @@ export function useAuth() {
   }
 
   const signInWithGoogle = async () => {
+    const { url, source } = debugGetSiteUrl()
+    console.log(`Debug - Using URL: ${url} from source: ${source}`)
+    
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${getSiteUrl()}/auth/callback`,
+        redirectTo: `${url}/auth/callback`,
       },
     })
 
