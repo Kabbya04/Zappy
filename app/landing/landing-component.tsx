@@ -131,6 +131,7 @@ export default function LandingPage({
                   <DropdownMenuContent>
                     <DropdownMenuLabel>{isGuest ? 'Guest' : user?.email}</DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    {!isGuest && <DropdownMenuItem onClick={() => window.location.href = '/profile'}>Profile</DropdownMenuItem>}
                     {!isGuest && <DropdownMenuItem onClick={signOut}>Sign out</DropdownMenuItem>}
                   </DropdownMenuContent>
                 </DropdownMenu>

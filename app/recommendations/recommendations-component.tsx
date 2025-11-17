@@ -6,6 +6,8 @@ import { RecommendationCard } from '@/components/recommendation-card';
 import { Moon, Sun, Zap, User, Mail, Globe, HelpCircle } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
+
 
 interface Recommendation {
   title: string;
@@ -18,6 +20,7 @@ interface RecommendationsPageProps {
   recommendations: Recommendation[];
   isLoading: boolean;
   setAppState: (state: 'questionnaire' | 'recommendations' | 'chat') => void;
+  setSelectedSessionId: (sessionId: string) => void;
   selectedCategory: string | null;
 }
 
@@ -25,16 +28,70 @@ export default function RecommendationsPage({
   recommendations,
   isLoading,
   setAppState,
+  setSelectedSessionId,
   selectedCategory,
 }: RecommendationsPageProps) {
   const { theme, setTheme } = useTheme();
   const [isMounted, setIsMounted] = useState(false);
+  const [user, setUser] = useState<{ id: string } | null>(null);
+  const supabase = createClient();
 
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    // Get current user
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getCurrentUser();
+  }, [supabase.auth]);
 
   const categoryTitle = selectedCategory ? selectedCategory.replace(/([A-Z])/g, ' $1').trim() : "Selections";
+
+  const handleDiscuss = async () => {
+    console.log('=== DEBUG: Discuss button clicked ===');
+    console.log('User state:', user);
+    console.log('Current URL:', window.location.href);
+    
+    if (!user) {
+      console.log('No user found, redirecting to auth');
+      window.location.href = '/auth';
+      return;
+    }
+
+    console.log('Creating session for user:', user.id);
+    
+    try {
+      const { data, error } = await supabase
+        .from('sessions')
+        .insert([
+          {
+            user_id: user.id,
+            category: selectedCategory,
+            recommendations: recommendations,
+          },
+        ])
+        .select('id')
+        .single();
+
+      if (error) {
+        console.error('Error creating session:', error);
+        alert('Failed to create session. Please try again.');
+        return;
+      }
+
+      if (data) {
+        console.log('Session created successfully:', data.id);
+        console.log('Setting selected session ID and app state...');
+        setSelectedSessionId(data.id);
+        setAppState('chat');
+        console.log('=== DEBUG: Navigation should occur now ===');
+      }
+    } catch (error) {
+      console.error('Exception in handleDiscuss:', error);
+      alert('An error occurred. Please try again.');
+    }
+  };
 
   if (isLoading && recommendations.length === 0) {
     return (
@@ -80,7 +137,7 @@ export default function RecommendationsPage({
 
         <div className="mt-16 text-center">
             <button
-              onClick={() => setAppState('chat')}
+              onClick={handleDiscuss}
               className="bg-primary text-primary-foreground font-bold py-3 px-8 rounded-full hover:bg-primary/90 transition-transform transform hover:scale-105"
             >
               Discuss with Zappy

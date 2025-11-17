@@ -3,6 +3,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Groq from 'groq-sdk';
 import { getLatestMedia, getTVDBImage, getConversationalContext } from '@/lib/tvdb';
 import { getLatestGames, getRawgImage } from '@/lib/rawg';
@@ -13,6 +14,8 @@ import QuestionnairePage from '@/app/questionnaire/questionnaire-component';
 import RecommendationsPage from '@/app/recommendations/recommendations-component';
 import ChatPage from '@/app/chat/chat-component';
 import { RecommendationModal } from '@/components/recommendation-modal';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/lib/hooks/use-auth';
 
 // --- Interface Definitions ---
 export interface Recommendation { 
@@ -35,6 +38,7 @@ const cleanTitleForSearch = (title: string): string => {
 
 // --- Main Page Component ---
 export default function Home() {
+  const searchParams = useSearchParams();
   const [showLanding, setShowLanding] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [otherAnswerText, setOtherAnswerText] = useState('');
@@ -47,6 +51,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [appState, setAppState] = useState<'questionnaire' | 'recommendations' | 'chat'>('questionnaire');
   const [modalContent, setModalContent] = useState<Recommendation | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   
   const [tempAnswer, setTempAnswer] = useState<string | null>(null);
 
@@ -58,6 +63,85 @@ export default function Home() {
   const [sessionId, setSessionId] = useState(0);
 
   const [showGuestModal, setShowGuestModal] = useState(false);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
+  const supabase = createClient();
+  const { getUser } = useAuth();
+
+  // Add debugging for appState changes
+  useEffect(() => {
+    console.log('App state changed to:', appState);
+  }, [appState]);
+
+  // Add debugging for selectedSessionId changes
+  useEffect(() => {
+    console.log('Selected session ID changed to:', selectedSessionId);
+  }, [selectedSessionId]);
+
+  // Get current user
+  useEffect(() => {
+    const fetchUser = async () => {
+      const user = await getUser();
+      setCurrentUser(user);
+    };
+    fetchUser();
+  }, [getUser]);
+
+  // Load session from URL parameters
+  useEffect(() => {
+    const loadSessionFromUrl = async () => {
+      const sessionId = searchParams.get('session_id');
+      const category = searchParams.get('category');
+      const limitReached = searchParams.get('limit_reached') === 'true';
+
+      if (sessionId && currentUser) {
+        console.log('Loading session from URL:', sessionId, category, limitReached);
+        setIsLoadingSession(true);
+        setShowLanding(false); // Hide landing page immediately when loading a session
+        
+        try {
+          // Fetch messages for the session
+          const { data: messages, error } = await supabase
+            .from('messages')
+            .select('id, content, created_at, role')
+            .eq('session_id', sessionId)
+            .order('created_at', { ascending: true });
+
+          if (error) {
+            console.error('Error loading session messages:', error);
+            return;
+          }
+
+          // Transform messages to chat history format
+          const loadedChatHistory = messages?.map(msg => ({
+            role: msg.role as 'user' | 'assistant',
+            content: msg.content
+          })) || [];
+
+          // Set the loaded session data
+          setSelectedSessionId(sessionId);
+          setChatHistory(loadedChatHistory);
+          setSelectedCategory(category as Category);
+          setAppState('chat');
+          
+          // If query limit is reached, set user input to empty and disable it
+          if (limitReached) {
+            setUserInput('');
+          }
+
+          console.log('Session loaded successfully:', loadedChatHistory.length, 'messages');
+        } catch (error) {
+          console.error('Error loading session:', error);
+        } finally {
+          setIsLoadingSession(false);
+        }
+      }
+    };
+
+    if (searchParams && currentUser) {
+      loadSessionFromUrl();
+    }
+  }, [searchParams, currentUser, supabase]);
 
   useEffect(() => {
     const fetchInitialContext = async () => {
@@ -206,6 +290,17 @@ export default function Home() {
     setUserInput('');
     setIsLoading(true);
 
+    if (currentUser && selectedSessionId) {
+      await supabase.from('messages').insert([
+        {
+          session_id: selectedSessionId,
+          user_id: currentUser.id,
+          role: 'user',
+          content: message,
+        },
+      ]);
+    }
+
     let generalContext = '';
     if (selectedCategory) {
         switch (selectedCategory) {
@@ -242,6 +337,17 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
         });
         const assistantResponse = completion.choices[0]?.message?.content || "I'm not sure how to respond.";
         setChatHistory(prev => [...prev, { role: 'assistant', content: assistantResponse }]);
+
+        if (currentUser && selectedSessionId) {
+          await supabase.from('messages').insert([
+            {
+              session_id: selectedSessionId,
+              user_id: currentUser.id,
+              role: 'assistant',
+              content: assistantResponse,
+            },
+          ]);
+        }
     } catch (error) {
         console.error("Error fetching chat response:", error);
         setChatHistory(prev => [...prev, { role: 'assistant', content: "Sorry, an error occurred." }]);
@@ -274,8 +380,22 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
   }
 
   const renderContent = () => {
+    console.log('Rendering content for appState:', appState);
+    
+    if (isLoadingSession) {
+      return (
+        <div className="h-screen flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold mb-4">Loading Session...</h2>
+            <p className="text-muted-foreground">Please wait while we load your chat session</p>
+          </div>
+        </div>
+      );
+    }
+    
     switch (appState) {
       case 'questionnaire':
+        console.log('Rendering QuestionnairePage');
         return (
           <QuestionnairePage
             selectedCategory={selectedCategory}
@@ -291,15 +411,18 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
           />
         );
       case 'recommendations':
+        console.log('Rendering RecommendationsPage');
         return (
           <RecommendationsPage
             recommendations={recommendations}
             isLoading={isLoading}
             setAppState={setAppState}
+            setSelectedSessionId={setSelectedSessionId}
             selectedCategory={selectedCategory}
           />
         );
       case 'chat':
+        console.log('Rendering ChatPage with sessionId:', selectedSessionId);
         return (
           <ChatPage
             chatHistory={chatHistory}
@@ -313,16 +436,19 @@ The user was previously recommended: ${recommendations.map(r => r.title).join(',
             isSidebarOpen={isSidebarOpen}
             setIsSidebarOpen={setIsSidebarOpen}
             handleStartOver={handleStartOver}
+            sessionId={selectedSessionId}
+            setSelectedSessionId={setSelectedSessionId}
           />
         );
       default:
+        console.log('Unknown appState:', appState);
         return null;
     }
   };
 
   return (
     <>
-      <main className={`transition-all duration-300 bg-gradient-to-br from-background to-gradient-accent/20 text-foreground ${modalContent || showGuestModal ? 'blur-sm' : ''} ${appState === 'chat' ? 'w-screen h-screen' : 'min-h-screen'}`}>
+      <main className={`transition-all duration-300 bg-gradient-to-br from-background to-gradient-accent/20 text-foreground ${modalContent || showGuestModal ? 'blur-sm' : ''}`}>
         {renderContent()}
       </main>
       <RecommendationModal recommendation={modalContent} onClose={closeModal} />

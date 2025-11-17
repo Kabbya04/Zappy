@@ -1,15 +1,11 @@
-// app/chat/page.tsx
-
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
 import { ChatMessage } from '@/components/chat-message';
 import { LucideIcon, Zap, ChevronLeft, ChevronRight, RefreshCw, Sun, Moon, Gamepad2, Bot, Film, Tv2, User, History } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import { ChatInput } from './chat-input';
+import { ChatInput } from '@/app/chat/chat-input';
 import { createClient } from '@/lib/supabase/client';
-
-import { SessionSwitcher } from '@/components/session-switcher';
 
 interface Recommendation { 
   title: string; 
@@ -23,65 +19,61 @@ interface Message {
   content: string;
 }
 
-interface ChatPageProps {
-  chatHistory: Message[];
-  userInput: string;
-  setUserInput: (value: string) => void;
-  isLoading: boolean;
-  handleSendMessage: (messageOverride?: string) => void;
-  selectedCategory: string | null;
-  recommendations: Recommendation[];
-  openModal: (recommendation: Recommendation) => void;
-  isSidebarOpen: boolean;
-  setIsSidebarOpen: (value: boolean) => void;
-  handleStartOver: () => void;
-  sessionId: string | null;
-  setSelectedSessionId: (sessionId: string) => void;
+interface ChatComponentProps {
+  sessionId: string;
+  category: string;
+  messages: { role: string; content: string }[];
+  queryLimitReached: boolean;
+  userId: string;
+  recommendations?: Recommendation[];
 }
 
-export default function ChatPage({
-  chatHistory,
-  userInput,
-  setUserInput,
-  isLoading,
-  handleSendMessage,
-  selectedCategory,
-  recommendations,
-  openModal,
-  isSidebarOpen,
-  setIsSidebarOpen,
-  handleStartOver,
-  sessionId,
-  setSelectedSessionId,
-}: ChatPageProps) {
+export default function ChatComponent({ sessionId, category, messages, queryLimitReached, userId, recommendations: initialRecommendations }: ChatComponentProps) {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const { theme, setTheme } = useTheme();
   const [isMounted, setIsMounted] = useState(false);
-  const [user, setUser] = useState<{ id: string } | null>(null);
   const [sessions, setSessions] = useState<{ id: string; category: string; created_at: string }[]>([]);
   const [showSessionHistory, setShowSessionHistory] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [userInput, setUserInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [chatHistory, setChatHistory] = useState<Message[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  
   const supabase = createClient();
 
   useEffect(() => {
     setIsMounted(true);
-    // Get current user
-    const getCurrentUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-    };
-    getCurrentUser();
-  }, [supabase.auth]);
+  }, []);
+
+  // Initialize chat history with existing messages
+  useEffect(() => {
+    console.log('Messages received from props:', messages);
+    console.log('Number of messages:', messages?.length);
+    
+    if (messages && messages.length > 0) {
+      const formattedMessages = messages.map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content
+      }));
+      console.log('Formatted messages:', formattedMessages);
+      setChatHistory(formattedMessages);
+    } else {
+      console.log('No messages found for this session');
+      setChatHistory([]);
+    }
+  }, [messages]);
 
   // Fetch user's sessions
   useEffect(() => {
     const fetchSessions = async () => {
-      if (!user) return;
+      if (!userId) return;
 
       try {
         const { data, error } = await supabase
           .from('sessions')
           .select('id, category, created_at')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .order('created_at', { ascending: false })
           .limit(10);
 
@@ -97,7 +89,75 @@ export default function ChatPage({
     };
 
     fetchSessions();
-  }, [user, supabase]);
+  }, [userId, supabase]);
+
+  // Initialize recommendations from props or fetch based on category
+  useEffect(() => {
+    if (initialRecommendations && initialRecommendations.length > 0) {
+      console.log('Using initial recommendations from session:', initialRecommendations);
+      setRecommendations(initialRecommendations);
+      return;
+    }
+
+    const fetchRecommendations = async () => {
+      if (!category) {
+        console.log('No category provided, skipping recommendations fetch');
+        return;
+      }
+
+      try {
+        console.log('Fetching recommendations for category:', category);
+        
+        // Check if the recommendations table exists and has data
+        const { data, error } = await supabase
+          .from('recommendations')
+          .select('title, category, explanation, imageUrl')
+          .eq('category', category)
+          .limit(3);
+
+        if (error) {
+          console.error('Supabase error fetching recommendations:', error.message, error.code, error.details);
+          
+          // Provide more specific error handling for common errors
+          if (error.code === 'PGRST205') {
+            console.warn('Recommendations table does not exist in the database. This is expected if the table hasn\'t been created yet.');
+            console.info('To fix this, create the recommendations table using the DATABASE_SETUP.md guide.');
+          } else if (error.code === 'PGRST116') {
+            console.warn('Recommendations table does not exist or is not accessible');
+          } else if (error.code === '42P01') {
+            console.warn('Recommendations table not found in database');
+          }
+          
+          // Set empty recommendations on error to prevent UI issues
+          setRecommendations([]);
+          return;
+        }
+
+        console.log('Recommendations data received:', data);
+
+        const formattedRecommendations = data?.map(rec => ({
+          title: rec.title,
+          category: rec.category,
+          explanation: rec.explanation,
+          imageUrl: rec.imageUrl
+        })) || [];
+
+        setRecommendations(formattedRecommendations);
+      } catch (error) {
+        console.error('Unexpected error fetching recommendations:', error);
+        setRecommendations([]);
+      }
+    };
+
+    // Only fetch recommendations if the table exists (you can set this to false to disable temporarily)
+    const ENABLE_RECOMMENDATIONS = true;
+    if (ENABLE_RECOMMENDATIONS) {
+      fetchRecommendations();
+    } else {
+      console.log('Recommendations disabled');
+      setRecommendations([]);
+    }
+  }, [category, supabase, initialRecommendations]);
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -105,30 +165,90 @@ export default function ChatPage({
     }
   }, [chatHistory]);
 
-  useEffect(() => {
-    const fetchMessages = async () => {
-      if (!sessionId) return;
-
-      const { data, error } = await supabase
-        .from('messages')
-        .select('role, content')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching messages:', error);
-        return;
-      }
-
-      if (data) {
-        // setChatHistory(data);
-      }
-    };
-
-    fetchMessages();
-  }, [sessionId, supabase]);
-
   const hasConversationStarted = chatHistory.length > 0;
+
+  const handleSendMessage = async (messageOverride?: string) => {
+    if (queryLimitReached) {
+      alert('You have reached the query limit for this session.');
+      return;
+    }
+
+    const message = messageOverride || userInput.trim();
+    if (!message) return;
+
+    setIsLoading(true);
+    setUserInput('');
+
+    // Add user message to chat history
+    const newUserMessage: Message = { role: 'user', content: message };
+    setChatHistory(prev => [...prev, newUserMessage]);
+
+    try {
+      // Save user message to database
+      await supabase
+        .from('messages')
+        .insert({
+          session_id: sessionId,
+          content: message,
+          role: 'user',
+          user_id: userId
+        });
+
+      // Get current session for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Get AI response
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify({
+          message,
+          category: category,
+          sessionId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response');
+      }
+
+      const data = await response.json();
+      
+      // Add assistant response to chat history
+      const assistantMessage: Message = { role: 'assistant', content: data.response };
+      setChatHistory(prev => [...prev, assistantMessage]);
+
+      // Save assistant message to database
+      await supabase
+        .from('messages')
+        .insert({
+          session_id: sessionId,
+          content: data.response,
+          role: 'assistant',
+          user_id: userId
+        });
+
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Add error message to chat history
+      const errorMessage: Message = { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' };
+      setChatHistory(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleStartOver = () => {
+    window.location.href = '/';
+  };
+
+  const openModal = (recommendation: Recommendation) => {
+    // Simple alert for now - you can implement a proper modal later
+    alert(`${recommendation.title}\n\n${recommendation.explanation}`);
+  };
 
   const handlePredefinedPromptClick = (prompt: string) => {
     handleSendMessage(prompt);
@@ -141,12 +261,11 @@ export default function ChatPage({
       Movie: Film, 
       'TV Series': Tv2 
     };
-    const Icon = selectedCategory ? ICONS[selectedCategory] : Bot;
+    const Icon = category ? ICONS[category] : Bot;
     
     return (
       <div className={`transition-all duration-300 ease-in-out bg-card border-r border-border flex flex-col flex-shrink-0 ${isSidebarOpen ? 'w-64 p-4' : 'w-0 md:w-20 p-0 md:p-2 items-center'}`}>
         <div className={`flex items-center mb-4 pb-4 border-b border-border ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
-          {/* MODIFICATION: This button is now completely hidden when the sidebar is closed */}
           <button onClick={() => window.location.href = '/'} className={`flex items-center gap-2 ${isSidebarOpen ? 'flex' : 'hidden'}`}>
             <Zap className="text-secondary" />
             <span className="text-xl font-bold">Zappy</span>
@@ -176,7 +295,7 @@ export default function ChatPage({
                 <button
                   key={session.id}
                   onClick={() => {
-                    setSelectedSessionId(session.id);
+                    // Navigate to the new session and reload the page to get fresh data
                     window.location.href = `/chat/${session.id}`;
                   }}
                   className={`w-full text-left p-2 rounded-lg text-xs hover:bg-background transition-colors ${
@@ -206,19 +325,28 @@ export default function ChatPage({
         <div className="flex-grow overflow-y-auto overflow-x-hidden">
           <div className={`text-sm font-semibold text-muted-foreground mb-2 ${isSidebarOpen ? 'block' : 'hidden'}`}>Recommendations</div>
           <ul className="flex flex-col gap-2">
-            {recommendations.map((rec, index) => (
-              <li key={index}>
-                <button 
-                  onClick={() => openModal(rec)} 
-                  className={`w-full text-left p-3 rounded-lg text-card-foreground/80 hover:bg-background transition-colors flex items-center gap-3 ${!isSidebarOpen && 'justify-center'}`}
-                >
-                  <Icon className="text-primary flex-shrink-0" size={20} />
-                  <span className={`truncate ${isSidebarOpen ? 'inline' : 'hidden'}`}>{rec.title}</span>
-                </button>
+            {recommendations.length > 0 ? (
+              recommendations.map((rec, index) => (
+                <li key={index}>
+                  <button 
+                    onClick={() => openModal(rec)} 
+                    className={`w-full text-left p-3 rounded-lg text-card-foreground/80 hover:bg-background transition-colors flex items-center gap-3 ${!isSidebarOpen && 'justify-center'}`}
+                  >
+                    <Icon className="text-primary flex-shrink-0" size={20} />
+                    <span className={`truncate ${isSidebarOpen ? 'inline' : 'hidden'}`}>{rec.title}</span>
+                  </button>
+                </li>
+              ))
+            ) : (
+              <li>
+                <div className={`text-xs text-muted-foreground/60 italic p-3 text-center ${isSidebarOpen ? 'block' : 'hidden'}`}>
+                  No recommendations available for {category || 'this category'}
+                </div>
               </li>
-            ))}
+            )}
           </ul>
         </div>
+        
         <div className={`mt-auto pt-4 border-t border-border flex flex-col gap-2 ${isSidebarOpen ? '' : 'w-full px-2'}`}>
           {/* Profile Button */}
           <button 
@@ -236,6 +364,7 @@ export default function ChatPage({
             <RefreshCw size={18} className="flex-shrink-0" />
             <span className={`font-medium ${isSidebarOpen ? 'inline' : 'hidden'}`}>Start Over</span>
           </button>
+          
           <button 
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} 
             className={`w-full bg-muted text-muted-foreground font-semibold py-2 rounded-lg hover:bg-muted/80 transition-colors flex items-center gap-2 ${isSidebarOpen ? 'px-4' : 'justify-center'}`}
@@ -287,7 +416,7 @@ export default function ChatPage({
             <div className="flex flex-col items-center gap-4">
               <Zap className="w-12 h-12 text-secondary" />
               <h1 className="text-4xl md:text-5xl font-serif">
-                {selectedCategory ? `Ready to discuss ${selectedCategory}s?` : "Let's find something great!"}
+                {category ? `Ready to discuss ${category}s?` : "Let's find something great!"}
               </h1>
             </div>
             <ChatInput 

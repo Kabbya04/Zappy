@@ -17,11 +17,10 @@ export default function AuthCallbackPage() {
         const hashParams = new URLSearchParams(window.location.hash.substring(1))
         const accessToken = hashParams.get('access_token')
         const refreshToken = hashParams.get('refresh_token')
-        const type = hashParams.get('type')
 
         if (accessToken && refreshToken) {
           // Exchange the tokens with Supabase
-          const { data, error } = await supabase.auth.setSession({
+          const { error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
           })
@@ -32,9 +31,7 @@ export default function AuthCallbackPage() {
           router.push('/')
         } else {
           // Handle PKCE flow (more common)
-          const { data, error } = await supabase.auth.getSession()
-          
-          if (error) throw error
+          const { data } = await supabase.auth.getSession()
           
           if (data.session) {
             router.push('/')
